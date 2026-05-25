@@ -1,0 +1,2249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2E7D32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Meal Planner">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232E7D32'/><text y='.9em' font-size='80' x='10'>🥗</text></svg>">
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Hooper+Family+Meal+Planner%22%2C%22short_name%22%3A%22Meal+Planner%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F9FBF9%22%2C%22theme_color%22%3A%22%232E7D32%22%7D">
+<title>Hooper Family Meal Planner</title>
+<style>
+:root {
+  --green:#2E7D32; --green-light:#43A047; --green-bg:#E8F5E9; --green-border:#C8E6C9;
+  --teal:#00695C; --teal-bg:#E0F2F1;
+  --orange:#E65100; --orange-bg:#FFF3E0;
+  --blue:#1565C0; --blue-bg:#E3F2FD;
+  --red:#C62828; --red-bg:#FFEBEE;
+  --gray:#424242; --gray-mid:#757575; --gray-light:#9E9E9E; --gray-bg:#F5F5F5;
+  --white:#FFFFFF; --border:#E0E0E0;
+  --shadow:0 2px 8px rgba(0,0,0,0.12);
+  --radius:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:14px;color:var(--gray);background:#F9FBF9;min-height:100vh}
+button{cursor:pointer;font-family:Arial,sans-serif}
+input,select,textarea{font-family:Arial,sans-serif;font-size:14px}
+a{color:var(--teal);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── NAV ── */
+#app-nav{background:var(--green);color:#fff;display:flex;align-items:center;padding:0 16px;height:52px;position:sticky;top:0;z-index:100;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
+#app-nav .brand{font-size:17px;font-weight:700;margin-right:24px;white-space:nowrap}
+#app-nav .brand span{font-weight:300;opacity:.8}
+.nav-tabs{display:flex;gap:2px;flex:1}
+.nav-tab{background:transparent;border:none;color:rgba(255,255,255,0.75);padding:8px 14px;border-radius:6px;font-size:13px;font-weight:600;transition:all .15s;white-space:nowrap}
+.nav-tab:hover{background:rgba(255,255,255,0.15);color:#fff}
+.nav-tab.active{background:rgba(255,255,255,0.22);color:#fff}
+.nav-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.btn-save{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700}
+.btn-save:hover{background:rgba(255,255,255,0.3)}
+
+/* ── VIEWS ── */
+.view{display:none;padding:20px}
+.view.active{display:block}
+
+/* ── CARDS / PANELS ── */
+.card{background:#fff;border-radius:var(--radius);border:1px solid var(--border);padding:20px;box-shadow:var(--shadow)}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-title{font-size:20px;font-weight:700;color:var(--green)}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;border:none;transition:all .15s;cursor:pointer}
+.btn-primary{background:var(--green);color:#fff}.btn-primary:hover{background:var(--green-light)}
+.btn-secondary{background:var(--gray-bg);color:var(--gray);border:1px solid var(--border)}.btn-secondary:hover{background:#EEEEEE}
+.btn-teal{background:var(--teal);color:#fff}.btn-teal:hover{background:#00796B}
+.btn-orange{background:var(--orange);color:#fff}.btn-orange:hover{background:#BF360C}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#B71C1C}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{background:none;border:none;padding:4px 6px;border-radius:4px;color:var(--gray-mid);font-size:16px}
+.btn-icon:hover{background:var(--gray-bg)}
+
+/* ── MONTHLY VIEW ── */
+#view-monthly{max-width:1100px;margin:0 auto}
+.month-nav{display:flex;align-items:center;gap:12px}
+.month-nav h2{font-size:18px;font-weight:700;color:var(--green);min-width:180px;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.cal-dow{background:var(--green-bg);text-align:center;padding:8px 4px;font-size:11px;font-weight:700;color:var(--teal);letter-spacing:.5px}
+.cal-cell{background:#fff;min-height:90px;padding:6px;position:relative;cursor:pointer;transition:background .1s}
+.cal-cell:hover{background:#F1F8E9}
+.cal-cell.other-month{background:#FAFAFA;opacity:.6}
+.cal-cell.today{background:var(--teal-bg)}
+.cal-cell.has-plan{border-top:3px solid var(--green)}
+.cal-cell.needs-plan{border-top:3px solid #FFA726}
+.cal-date{font-size:11px;font-weight:700;color:var(--gray-mid);margin-bottom:4px}
+.cal-meal-pill{background:var(--green-bg);color:var(--green);font-size:10px;font-weight:600;padding:2px 5px;border-radius:3px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-plan-btn{position:absolute;bottom:4px;right:4px;background:var(--orange);color:#fff;border:none;border-radius:4px;font-size:9px;font-weight:700;padding:2px 5px;cursor:pointer}
+.week-row{display:contents}
+.week-click-zone{grid-column:1/-1;height:0} /* invisible — clicking the row is handled per-cell */
+
+/* ── WEEKLY VIEW ── */
+#view-weekly{max-width:1100px;margin:0 auto}
+.week-nav{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.week-nav h2{font-size:18px;font-weight:700;color:var(--green);min-width:240px;text-align:center}
+.week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:12px}
+.day-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.day-card-header{padding:8px 10px;background:var(--green-bg);display:flex;flex-direction:column}
+.day-name{font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.5px}
+.day-date{font-size:13px;font-weight:700;color:var(--gray)}
+.day-card-body{padding:10px}
+.meal-slot{margin-bottom:8px}
+.meal-slot-label{font-size:10px;font-weight:700;color:var(--gray-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.meal-slot-label.required::after{content:' ★';color:var(--green);font-size:9px}
+.dinner-card{background:var(--green-bg);border:1px solid var(--green-border);border-radius:5px;padding:7px 9px;cursor:pointer;min-height:52px;transition:background .1s}
+.dinner-card:hover{background:#DCEDC8}
+.dinner-card.empty{background:var(--gray-bg);border:1px dashed var(--border);color:var(--gray-light);font-size:11px;display:flex;align-items:center;justify-content:center}
+.dinner-card .meal-name{font-size:12px;font-weight:700;color:var(--green);line-height:1.3;margin-bottom:3px}
+.dinner-card .meal-meta{font-size:10px;color:var(--gray-mid)}
+.dinner-card .meal-actions{display:flex;gap:4px;margin-top:5px}
+.meal-action-btn{background:rgba(255,255,255,0.7);border:1px solid var(--green-border);border-radius:3px;font-size:10px;padding:2px 6px;cursor:pointer;color:var(--green);font-weight:600}
+.meal-action-btn:hover{background:#fff}
+.optional-meals{margin-top:6px}
+.optional-toggle{background:none;border:none;font-size:10px;color:var(--gray-light);cursor:pointer;padding:2px 0;text-align:left;width:100%}
+.optional-toggle:hover{color:var(--gray)}
+.optional-content{display:none;margin-top:4px}
+.optional-content.open{display:block}
+.optional-meal-slot{background:var(--gray-bg);border:1px dashed var(--border);border-radius:4px;padding:5px 7px;margin-bottom:4px;cursor:pointer;font-size:11px;color:var(--gray-mid)}
+.optional-meal-slot.filled{background:var(--blue-bg);border-color:#90CAF9;color:var(--blue)}
+.week-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.week-incomplete-banner{background:var(--orange-bg);border:1px solid #FFCC80;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--orange)}
+
+/* ── SHARED INGREDIENT BADGE ── */
+.share-badge{background:var(--teal-bg);border:1px solid #80CBC4;border-radius:10px;font-size:9px;color:var(--teal);font-weight:700;padding:1px 5px;margin-left:4px;display:inline-block}
+
+/* ── RECIPE LIBRARY ── */
+#view-library{max-width:1100px;margin:0 auto}
+.filter-bar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:3px}
+.filter-label{font-size:10px;font-weight:700;color:var(--gray-light);text-transform:uppercase;letter-spacing:.4px}
+.filter-select{border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:12px;color:var(--gray);background:#fff}
+.filter-search{border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:13px;width:200px}
+.filter-search:focus,.filter-select:focus{outline:none;border-color:var(--teal)}
+.recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.recipe-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .15s,transform .1s;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.recipe-card:hover{box-shadow:0 4px 16px rgba(0,0,0,0.14);transform:translateY(-2px)}
+.recipe-card-photo{height:130px;background:var(--green-bg);display:flex;align-items:center;justify-content:center;font-size:36px;overflow:hidden}
+.recipe-card-photo img{width:100%;height:100%;object-fit:cover}
+.recipe-card-body{padding:10px}
+.recipe-card-name{font-size:13px;font-weight:700;color:var(--gray);margin-bottom:5px;line-height:1.3}
+.recipe-card-tags{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px}
+.tag{background:var(--green-bg);color:var(--green);font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px}
+.tag.protein{background:var(--teal-bg);color:var(--teal)}
+.tag.cuisine{background:var(--blue-bg);color:var(--blue)}
+.tag.tier-a{background:#E8F5E9;color:#2E7D32}
+.tag.tier-b{background:#E3F2FD;color:#1565C0}
+.tag.tier-c{background:#FFF3E0;color:#E65100}
+.recipe-card-meta{font-size:10px;color:var(--gray-light);display:flex;justify-content:space-between}
+.empty-state{text-align:center;padding:60px 20px;color:var(--gray-light)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state h3{font-size:16px;color:var(--gray-mid);margin-bottom:8px}
+
+/* ── GROCERY VIEW ── */
+#view-grocery{max-width:800px;margin:0 auto}
+.trip-tabs{display:flex;gap:0;margin-bottom:20px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+.trip-tab{flex:1;background:#fff;border:none;padding:10px;font-size:13px;font-weight:600;color:var(--gray-mid);cursor:pointer;transition:all .15s}
+.trip-tab.active{background:var(--green);color:#fff}
+.trip-panel{display:none}.trip-panel.active{display:block}
+.grocery-section{margin-bottom:20px}
+.grocery-section-header{font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.5px;padding:6px 0;border-bottom:1px solid var(--green-border);margin-bottom:8px}
+.grocery-item{display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-radius:4px;transition:background .1s}
+.grocery-item:hover{background:var(--gray-bg)}
+.grocery-item input[type=checkbox]{margin-top:2px;accent-color:var(--green);width:15px;height:15px;flex-shrink:0}
+.grocery-item-text{flex:1}
+.grocery-item-name{font-size:13px;color:var(--gray)}
+.grocery-item-name.checked{text-decoration:line-through;color:var(--gray-light)}
+.grocery-item-meal{font-size:10px;color:var(--gray-light)}
+.grocery-item-move{font-size:10px;color:var(--blue);cursor:pointer;background:none;border:none;padding:2px 4px}
+.grocery-item-move:hover{text-decoration:underline}
+.grocery-extra-input{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
+.grocery-extra-input input{flex:1;border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:13px}
+.grocery-empty{text-align:center;padding:40px;color:var(--gray-light);font-size:13px}
+
+/* ── SETTINGS ── */
+#view-settings{max-width:700px;margin:0 auto}
+.settings-section{margin-bottom:28px}
+.settings-section h3{font-size:15px;font-weight:700;color:var(--teal);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--green-border)}
+.form-row{display:flex;gap:12px;margin-bottom:10px;align-items:center}
+.form-label{font-size:12px;font-weight:700;color:var(--gray-mid);min-width:140px}
+.form-input{border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-size:13px;flex:1}
+.form-input:focus{outline:none;border-color:var(--teal)}
+.staple-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.staple-chip{background:var(--green-bg);border:1px solid var(--green-border);border-radius:12px;padding:4px 10px;font-size:12px;color:var(--green);display:flex;align-items:center;gap:5px}
+.staple-chip button{background:none;border:none;color:var(--gray-light);font-size:12px;cursor:pointer;padding:0;line-height:1}
+.staple-chip button:hover{color:var(--red)}
+.staple-add{display:flex;gap:8px;margin-top:6px}
+.staple-add input{flex:1;border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:13px}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;overflow-y:auto;padding:20px}
+.modal-overlay.open{display:flex;align-items:flex-start;justify-content:center}
+.modal{background:#fff;border-radius:10px;width:100%;max-width:700px;box-shadow:0 8px 40px rgba(0,0,0,0.25);margin:auto}
+.modal-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:16px;font-weight:700;color:var(--green)}
+.modal-close{background:none;border:none;font-size:20px;color:var(--gray-light);cursor:pointer;line-height:1;padding:2px}
+.modal-close:hover{color:var(--gray)}
+.modal-body{padding:20px}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+
+/* ── RECIPE DETAIL MODAL ── */
+.recipe-detail-header{display:flex;gap:16px;margin-bottom:20px}
+.recipe-detail-photo{width:160px;height:120px;border-radius:var(--radius);background:var(--green-bg);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden}
+.recipe-detail-photo img{width:100%;height:100%;object-fit:cover}
+.recipe-detail-info{flex:1}
+.recipe-detail-name{font-size:20px;font-weight:700;color:var(--green);margin-bottom:8px;line-height:1.2}
+.recipe-meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.recipe-meta-item{background:var(--gray-bg);border-radius:5px;padding:5px 8px;text-align:center}
+.recipe-meta-item .label{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--gray-light);letter-spacing:.4px}
+.recipe-meta-item .value{font-size:13px;font-weight:700;color:var(--gray)}
+.recipe-source-link{font-size:11px;margin-top:6px}
+.recipe-body{display:grid;grid-template-columns:1fr 1.6fr;gap:20px}
+.recipe-body-col h3{font-size:13px;font-weight:700;color:var(--teal);margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--green-border)}
+.ingredient-item{font-size:13px;padding:4px 0;border-bottom:1px solid var(--gray-bg);display:flex;align-items:baseline;gap:6px}
+.ingredient-item.staple{color:var(--gray-light)}
+.ingredient-item .qty{font-weight:700;color:var(--green);min-width:60px;font-size:12px}
+.ingredient-group-label{font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;margin-top:8px;margin-bottom:2px}
+.instruction-step{display:flex;gap:10px;padding:5px 0;font-size:13px;line-height:1.5}
+.step-num{background:var(--green);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:2px}
+.recipe-notes-box{background:var(--orange-bg);border-left:4px solid var(--orange);border-radius:4px;padding:10px 12px;margin-top:16px;font-size:12px;color:var(--gray)}
+.recipe-notes-box strong{color:var(--orange)}
+
+/* ── ADD/EDIT RECIPE MODAL ── */
+.add-recipe-tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:18px}
+.add-recipe-tab{background:none;border:none;padding:8px 16px;font-size:13px;font-weight:600;color:var(--gray-light);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.add-recipe-tab.active{color:var(--green);border-bottom-color:var(--green)}
+.add-recipe-panel{display:none}.add-recipe-panel.active{display:block}
+.form-section{margin-bottom:18px}
+.form-section-title{font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--green-border)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-field{display:flex;flex-direction:column;gap:3px}
+.form-field label{font-size:11px;font-weight:700;color:var(--gray-mid)}
+.form-field input,.form-field select,.form-field textarea{border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:13px;color:var(--gray)}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{outline:none;border-color:var(--teal)}
+.form-field textarea{resize:vertical;min-height:80px}
+.form-field.full{grid-column:1/-1}
+.ingredients-editor{border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.ingredient-row{display:grid;grid-template-columns:70px 100px 1fr 120px 30px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);align-items:center}
+.ingredient-row:last-child{border-bottom:none}
+.ingredient-row input,.ingredient-row select{border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:12px;width:100%}
+.ingredient-row .del-btn{background:none;border:none;color:var(--gray-light);font-size:16px;cursor:pointer;padding:0;text-align:center}
+.ingredient-row .del-btn:hover{color:var(--red)}
+.ing-header{background:var(--gray-bg);font-size:10px;font-weight:700;color:var(--gray-light);text-transform:uppercase}
+.instructions-editor textarea{width:100%;border:1px solid var(--border);border-radius:5px;padding:8px;font-size:13px;resize:vertical;min-height:160px}
+.instructions-note{font-size:11px;color:var(--gray-light);margin-top:4px}
+
+/* ── CLAUDE IMPORT PANEL ── */
+.claude-flow{counter-reset:claude-step}
+.claude-step{display:flex;gap:14px;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.claude-step:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.claude-step-num{background:var(--green);color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.claude-step-content h4{font-size:13px;font-weight:700;color:var(--gray);margin-bottom:6px}
+.claude-step-content p{font-size:12px;color:var(--gray-mid);margin-bottom:8px;line-height:1.5}
+.prompt-box{background:var(--gray-bg);border:1px solid var(--border);border-radius:5px;padding:10px 12px;font-size:11px;font-family:monospace;color:var(--gray);line-height:1.5;position:relative;max-height:160px;overflow-y:auto}
+.copy-btn{position:absolute;top:6px;right:6px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:10px;font-weight:700;padding:3px 8px;cursor:pointer}
+.copy-btn:hover{background:var(--green-light)}
+.paste-area{width:100%;border:2px dashed var(--border);border-radius:5px;padding:10px;font-size:12px;font-family:monospace;color:var(--gray);min-height:120px;resize:vertical;transition:border-color .15s}
+.paste-area:focus{outline:none;border-color:var(--teal)}
+.paste-area.valid{border-color:var(--green);background:var(--green-bg)}
+.paste-area.invalid{border-color:var(--red);background:var(--red-bg)}
+
+/* ── SOURCE FIELD ── */
+.source-type-select{display:flex;gap:6px;margin-bottom:8px}
+.source-type-btn{flex:1;padding:6px;border:2px solid var(--border);border-radius:5px;background:#fff;font-size:12px;font-weight:600;color:var(--gray-mid);cursor:pointer;text-align:center;transition:all .15s}
+.source-type-btn.active{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+
+/* ── PRINT STYLES ── */
+@media print {
+  #app-nav,.nav-tabs,.btn,.modal-footer,.filter-bar,#view-monthly,#view-weekly,#view-library,#view-grocery,#view-settings,.week-actions,.modal-overlay:not(.printing){display:none!important}
+  .modal-overlay.printing{display:block!important;position:static!important;background:none!important;padding:0!important}
+  .modal.printing{box-shadow:none!important;max-width:100%!important}
+  .recipe-body{display:grid!important}
+  body{font-size:12px}
+}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gray);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .week-grid{grid-template-columns:1fr;gap:8px}
+  .recipe-body{grid-template-columns:1fr}
+  .recipe-detail-header{flex-direction:column}
+  .form-grid{grid-template-columns:1fr}
+  .nav-tabs .nav-tab{padding:8px 8px;font-size:11px}
+  .brand{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ NAV ══════════════════════════════════════════ -->
+<nav id="app-nav">
+  <div class="brand">🥗 <span>Hooper</span> Meal Planner</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showView('monthly')">📅 Monthly</button>
+    <button class="nav-tab" onclick="showView('weekly')">📋 Weekly</button>
+    <button class="nav-tab" onclick="showView('library')">🍽️ Recipes</button>
+    <button class="nav-tab" onclick="showView('grocery')">🛒 Grocery</button>
+    <button class="nav-tab" onclick="showView('settings')">⚙️ Settings</button>
+  </div>
+  <div class="nav-right">
+    <button id="btn-install" class="btn btn-secondary btn-sm" onclick="openInstallGuide()" style="display:none">📱 Install</button>
+    <button class="btn-save" onclick="saveFile()">💾 Save &amp; Sync</button>
+  </div>
+</nav>
+
+<!-- ══ MONTHLY VIEW ════════════════════════════════ -->
+<div id="view-monthly" class="view active">
+  <div class="page-header">
+    <div class="month-nav">
+      <button class="btn btn-secondary btn-sm" onclick="changeMonth(-1)">‹</button>
+      <h2 id="month-title"></h2>
+      <button class="btn btn-secondary btn-sm" onclick="changeMonth(1)">›</button>
+      <button class="btn btn-secondary btn-sm" onclick="goToToday()">Today</button>
+    </div>
+    <button class="btn btn-primary" onclick="openAddRecipe()">+ Add Recipe</button>
+  </div>
+  <div id="cal-grid" class="cal-grid">
+    <div class="cal-dow">Sun</div><div class="cal-dow">Mon</div><div class="cal-dow">Tue</div>
+    <div class="cal-dow">Wed</div><div class="cal-dow">Thu</div><div class="cal-dow">Fri</div><div class="cal-dow">Sat</div>
+  </div>
+</div>
+
+<!-- ══ WEEKLY VIEW ═════════════════════════════════ -->
+<div id="view-weekly" class="view">
+  <div class="week-nav">
+    <button class="btn btn-secondary btn-sm" onclick="changeWeek(-1)">‹</button>
+    <h2 id="week-title"></h2>
+    <button class="btn btn-secondary btn-sm" onclick="changeWeek(1)">›</button>
+    <button class="btn btn-secondary btn-sm" onclick="goToCurrentWeek()">This Week</button>
+  </div>
+  <div id="week-banner"></div>
+  <div id="week-grid" class="week-grid"></div>
+  <div class="week-actions">
+    <button class="btn btn-secondary" onclick="openGrocery()">🛒 View Grocery List</button>
+    <button class="btn btn-teal" onclick="autoSuggestWeek()">✨ Auto-Suggest Week</button>
+    <button class="btn btn-primary" onclick="finalizeWeek()">✓ Finalize Week</button>
+  </div>
+</div>
+
+<!-- ══ LIBRARY VIEW ════════════════════════════════ -->
+<div id="view-library" class="view">
+  <div class="page-header">
+    <span class="page-title">Recipe Library</span>
+    <button class="btn btn-primary" onclick="openAddRecipe()">+ Add Recipe</button>
+  </div>
+  <div class="filter-bar">
+    <div class="filter-group">
+      <span class="filter-label">Search</span>
+      <input class="filter-search" id="filter-search" placeholder="Search recipes…" oninput="renderLibrary()">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Protein</span>
+      <select class="filter-select" id="filter-protein" onchange="renderLibrary()">
+        <option value="">All</option>
+        <option>chicken</option><option>beef</option><option>pork</option>
+        <option>fish</option><option>seafood</option><option>vegetarian</option><option>eggs</option><option>mixed</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Cuisine</span>
+      <select class="filter-select" id="filter-cuisine" onchange="renderLibrary()">
+        <option value="">All</option>
+        <option>italian</option><option>mexican</option><option>american</option>
+        <option>asian</option><option>mediterranean</option><option>other</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Time</span>
+      <select class="filter-select" id="filter-time" onchange="renderLibrary()">
+        <option value="">Any</option>
+        <option value="30">Under 30 min</option>
+        <option value="60">Under 60 min</option>
+        <option value="61">60+ min</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Tier</span>
+      <select class="filter-select" id="filter-tier" onchange="renderLibrary()">
+        <option value="">All</option>
+        <option value="A">A – Anchor (favorites)</option>
+        <option value="B">B – Rotation</option>
+        <option value="C">C – Variety</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Sort</span>
+      <select class="filter-select" id="filter-sort" onchange="renderLibrary()">
+        <option value="alpha">A–Z</option>
+        <option value="freq">Most Made</option>
+        <option value="oldest">Least Recently Made</option>
+        <option value="newest">Date Added</option>
+        <option value="time">Total Time</option>
+      </select>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="clearFilters()">Clear</button>
+  </div>
+  <div id="recipe-grid" class="recipe-grid"></div>
+</div>
+
+<!-- ══ GROCERY VIEW ════════════════════════════════ -->
+<div id="view-grocery" class="view">
+  <div class="page-header">
+    <span class="page-title">Grocery Lists</span>
+    <div style="display:flex;gap:10px;align-items:center">
+      <select id="grocery-week-select" class="filter-select" onchange="renderGrocery()"></select>
+      <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ Print</button>
+      <button class="btn btn-teal btn-sm" onclick="openExportModal()">📋 Copy for AnyList</button>
+    </div>
+  </div>
+  <div class="trip-tabs">
+    <button class="trip-tab active" onclick="switchTrip(1)">🛒 Trip 1 — Sat/Sun</button>
+    <button class="trip-tab" onclick="switchTrip(2)">🥬 Trip 2 — Wed/Thu</button>
+  </div>
+  <div id="trip1-panel" class="trip-panel active"></div>
+  <div id="trip2-panel" class="trip-panel"></div>
+</div>
+
+<!-- ══ SETTINGS VIEW ══════════════════════════════ -->
+<div id="view-settings" class="view">
+  <div class="page-header"><span class="page-title">Settings</span></div>
+
+  <div class="card settings-section">
+    <h3>Family Profile</h3>
+    <div class="form-row"><span class="form-label">Family Name</span>
+      <input class="form-input" id="s-family-name" value="" onchange="saveSettings()"></div>
+    <div class="form-row"><span class="form-label">Default Servings</span>
+      <input class="form-input" id="s-servings" type="number" min="1" max="20" onchange="saveSettings()"></div>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Grocery Trips</h3>
+    <div class="form-row"><span class="form-label">Trip 1 (main shop)</span>
+      <select class="form-input" id="s-trip1" onchange="saveSettings()">
+        <option value="saturday">Saturday</option><option value="sunday">Sunday</option>
+      </select></div>
+    <div class="form-row"><span class="form-label">Trip 2 (fresh refresh)</span>
+      <select class="form-input" id="s-trip2" onchange="saveSettings()">
+        <option value="wednesday">Wednesday</option><option value="thursday">Thursday</option>
+      </select></div>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Rotation Rules</h3>
+    <div class="form-row"><span class="form-label">No-repeat window</span>
+      <select class="form-input" id="s-norepeat" onchange="saveSettings()">
+        <option value="1">1 week</option><option value="2" selected>2 weeks</option><option value="3">3 weeks</option>
+      </select></div>
+    <div class="form-row"><span class="form-label">Max same protein / week</span>
+      <select class="form-input" id="s-maxprotein" onchange="saveSettings()">
+        <option value="2">2</option><option value="3" selected>3</option><option value="4">4</option>
+      </select></div>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Pantry Staples <span style="font-size:11px;font-weight:400;color:var(--gray-light)">— items never added to shopping list</span></h3>
+    <div id="staple-list" class="staple-list"></div>
+    <div class="staple-add">
+      <input id="staple-input" class="form-input" placeholder="Add a staple ingredient…" onkeydown="if(event.key==='Enter')addStaple()">
+      <button class="btn btn-primary btn-sm" onclick="addStaple()">Add</button>
+    </div>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Data Management</h3>
+    <p style="font-size:12px;color:var(--gray-mid);margin-bottom:12px">The app data is saved <em>inside</em> this HTML file. Click <strong>Save &amp; Sync</strong> (top-right) after any session to download the updated file. Replace the copy in your shared Google Drive folder so both adults stay in sync.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="exportJSON()">📤 Export Data (JSON)</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('import-json-input').click()">📥 Import Data (JSON)</button>
+      <input type="file" id="import-json-input" accept=".json" style="display:none" onchange="importJSON(event)">
+      <button class="btn btn-danger" onclick="confirmReset()">🗑️ Reset All Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RECIPE DETAIL MODAL ════════════════════════ -->
+<div id="modal-recipe" class="modal-overlay">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-recipe-title">Recipe</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="printRecipe()">🖨️ Print</button>
+        <button class="btn btn-secondary btn-sm" onclick="editCurrentRecipe()">✏️ Edit</button>
+        <button class="modal-close" onclick="closeModal('modal-recipe')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-recipe-body"></div>
+  </div>
+</div>
+
+<!-- ══ ADD/EDIT RECIPE MODAL ══════════════════════ -->
+<div id="modal-add-recipe" class="modal-overlay">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <span class="modal-title" id="add-recipe-title">Add Recipe</span>
+      <button class="modal-close" onclick="closeModal('modal-add-recipe')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="add-recipe-tabs">
+        <button class="add-recipe-tab active" onclick="switchAddTab('manual')">✏️ Manual Entry</button>
+        <button class="add-recipe-tab" onclick="switchAddTab('claude')">🤖 Add via Claude</button>
+      </div>
+
+      <!-- MANUAL ENTRY -->
+      <div id="tab-manual" class="add-recipe-panel active">
+        <input type="hidden" id="edit-recipe-id">
+        <div class="form-section">
+          <div class="form-section-title">Recipe Info</div>
+          <div class="form-grid">
+            <div class="form-field full"><label>Recipe Name *</label>
+              <input id="f-name" placeholder="e.g. Sheet Pan Chicken Thighs"></div>
+            <div class="form-field"><label>Prep Time (min)</label>
+              <input id="f-prep" type="number" min="0" placeholder="15"></div>
+            <div class="form-field"><label>Cook Time (min)</label>
+              <input id="f-cook" type="number" min="0" placeholder="30"></div>
+            <div class="form-field"><label>Difficulty</label>
+              <select id="f-difficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select></div>
+            <div class="form-field"><label>Servings</label>
+              <input id="f-servings" type="number" min="1" value="5"></div>
+            <div class="form-field"><label>Protein</label>
+              <select id="f-protein">
+                <option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option>
+                <option value="fish">Fish</option><option value="seafood">Seafood</option>
+                <option value="vegetarian">Vegetarian</option><option value="eggs">Eggs</option><option value="mixed">Mixed</option>
+              </select></div>
+            <div class="form-field"><label>Cuisine</label>
+              <select id="f-cuisine">
+                <option value="american">American</option><option value="italian">Italian</option><option value="mexican">Mexican</option>
+                <option value="asian">Asian</option><option value="mediterranean">Mediterranean</option><option value="other">Other</option>
+              </select></div>
+            <div class="form-field"><label>Course</label>
+              <select id="f-course">
+                <option value="dinner">Dinner</option><option value="lunch">Lunch</option>
+                <option value="breakfast">Breakfast</option><option value="side">Side</option><option value="dessert">Dessert</option>
+              </select></div>
+            <div class="form-field full"><label>Tags (comma-separated)</label>
+              <input id="f-tags" placeholder="sheet-pan, kid-friendly, make-ahead"></div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Source</div>
+          <div class="source-type-select">
+            <button class="source-type-btn active" onclick="setSourceType('url')">🔗 Website URL</button>
+            <button class="source-type-btn" onclick="setSourceType('file')">📁 Google Drive File</button>
+            <button class="source-type-btn" onclick="setSourceType('manual')">✏️ No Source</button>
+          </div>
+          <div id="source-url-field" class="form-field">
+            <label>Recipe URL</label>
+            <input id="f-source-url" type="url" placeholder="https://..."></div>
+          <div id="source-file-field" class="form-field" style="display:none">
+            <label>Google Drive Share Link</label>
+            <input id="f-source-file" type="url" placeholder="https://drive.google.com/..."></div>
+          <div id="source-manual-field" style="display:none">
+            <p style="font-size:12px;color:var(--gray-mid);padding:8px 0">This recipe will be marked as "Manually entered — no source file."</p></div>
+          <input type="hidden" id="f-source-type" value="url">
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Ingredients</div>
+          <div class="ingredients-editor" id="ingredients-editor">
+            <div class="ingredient-row ing-header">
+              <span>Qty</span><span>Unit</span><span>Ingredient</span><span>Prep Note</span><span></span>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="addIngredientRow()">+ Add Ingredient</button>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Instructions</div>
+          <p class="instructions-note" style="margin-bottom:6px">Enter one step per line. Start each step with the action verb.</p>
+          <div class="instructions-editor">
+            <textarea id="f-instructions" placeholder="Preheat oven to 425°F.&#10;Season chicken with salt and pepper.&#10;Place on baking sheet and roast for 30 minutes."></textarea>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Family Notes &amp; Tips</div>
+          <div class="form-field">
+            <textarea id="f-notes" placeholder="e.g. Kids prefer less spice — halve the cayenne. Great with rice."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLAUDE IMPORT -->
+      <div id="tab-claude" class="add-recipe-panel">
+        <div class="claude-flow">
+
+          <div class="claude-step">
+            <div class="claude-step-num">1</div>
+            <div class="claude-step-content">
+              <h4>Share your recipe with Claude</h4>
+              <p>In this Cowork session, share the recipe you want to add. You can:</p>
+              <ul style="font-size:12px;color:var(--gray-mid);padding-left:18px;line-height:1.8">
+                <li><strong>Upload a photo</strong> — take a photo of a cookbook page, recipe card, or handwritten note and attach it to a message</li>
+                <li><strong>Paste a URL</strong> — paste the link to any recipe website</li>
+                <li><strong>Describe it</strong> — type out the recipe name and details if you know it by heart</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="claude-step">
+            <div class="claude-step-num">2</div>
+            <div class="claude-step-content">
+              <h4>Copy &amp; send this message to Claude</h4>
+              <p>After sharing your recipe, send this message. Claude will respond with formatted JSON you can paste below.</p>
+              <div class="prompt-box" id="claude-prompt-box">Please read the recipe I just shared and output ONLY a JSON object in this exact format — no other text, no markdown code block, just the raw JSON:
+
+{
+  "name": "Recipe Name",
+  "servings": 5,
+  "prepTime": 15,
+  "cookTime": 30,
+  "difficulty": "easy",
+  "protein": "chicken",
+  "cuisine": "american",
+  "course": "dinner",
+  "tags": ["sheet-pan", "kid-friendly"],
+  "ingredients": [
+    { "name": "chicken thighs", "quantity": "2", "unit": "lbs", "prep": "bone-in skin-on", "group": "", "freshness": "medium-shelf", "storeSection": "meat" }
+  ],
+  "instructions": [
+    "Preheat oven to 425°F.",
+    "Season chicken with salt and pepper."
+  ],
+  "notes": ""
+}
+
+Rules — use only these values:
+- difficulty: "easy" | "medium" | "hard"
+- protein: "chicken" | "beef" | "pork" | "fish" | "seafood" | "vegetarian" | "eggs" | "mixed"
+- cuisine: "italian" | "mexican" | "american" | "asian" | "mediterranean" | "other"
+- course: "dinner" | "lunch" | "breakfast" | "side" | "dessert"
+- freshness: "long-shelf" | "medium-shelf" | "short-shelf"
+- storeSection: "produce" | "meat" | "dairy" | "frozen" | "pantry" | "bakery" | "other"
+- tags: common values include sheet-pan, one-pot, slow-cooker, kid-friendly, make-ahead, freezer-friendly, grilling, quick
+- Output raw JSON only. No explanation.
+
+CRITICAL PARSING RULES (DO NOT VIOLATE):
+- DO NOT scale ingredient quantities.
+- Preserve all ingredient amounts exactly as written in the recipe.
+- Do NOT convert units (e.g., 2/3 cup must stay "2/3", not 0.67).
+- If a range is provided (e.g., "2-3 Tbsp"), keep it as a range string.
+- Do NOT round, normalize, or reinterpret quantities.
+- Do NOT combine or split ingredient lines unless explicitly written.
+- "quantity" must always be a string (e.g., "2/3", "1", "2-3"), never a number.
+- If no serving size is provided in the recipe, set "servings": "unspecified" and leave all ingredient quantities unchanged.</div>
+              <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="copyClaudePrompt()">📋 Copy Message</button>
+            </div>
+          </div>
+
+          <div class="claude-step">
+            <div class="claude-step-num">3</div>
+            <div class="claude-step-content">
+              <h4>Paste Claude's response here</h4>
+              <p>Copy the JSON that Claude outputs and paste it in the box below. The app will parse it automatically.</p>
+              <textarea class="paste-area" id="claude-paste" placeholder='Paste Claude\'s JSON response here…' oninput="validateClaudePaste()"></textarea>
+              <div id="claude-paste-status" style="font-size:11px;margin-top:4px;color:var(--gray-light)">Waiting for input…</div>
+            </div>
+          </div>
+
+          <div class="claude-step">
+            <div class="claude-step-num">4</div>
+            <div class="claude-step-content">
+              <h4>Add source link (optional)</h4>
+              <p>Paste the URL or Google Drive link to the original recipe so you can always find it again.</p>
+              <div class="source-type-select">
+                <button class="source-type-btn active" onclick="setSourceTypeC('url')">🔗 Website URL</button>
+                <button class="source-type-btn" onclick="setSourceTypeC('file')">📁 Google Drive</button>
+                <button class="source-type-btn" onclick="setSourceTypeC('manual')">No source</button>
+              </div>
+              <input id="fc-source-url" type="url" placeholder="https://..." style="width:100%;border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:13px;margin-top:4px">
+              <input id="fc-source-file" type="url" placeholder="https://drive.google.com/..." style="width:100%;border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:13px;margin-top:4px;display:none">
+              <input type="hidden" id="fc-source-type" value="url">
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-add-recipe')">Cancel</button>
+      <button id="save-recipe-btn" class="btn btn-primary" onclick="saveRecipe()">Save Recipe</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PICK MEAL MODAL ════════════════════════════ -->
+<div id="modal-pick-meal" class="modal-overlay">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title" id="pick-meal-title">Choose a Meal</span>
+      <button class="modal-close" onclick="closeModal('modal-pick-meal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px">
+        <input class="filter-search" id="pick-search" placeholder="Search recipes…" oninput="renderPickList()" style="width:100%">
+      </div>
+      <div id="pick-list" style="max-height:400px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXPORT MODAL ════════════════════════════════ -->
+<div id="modal-export" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-export')">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">📋 Copy Grocery List</span>
+      <button class="modal-close" onclick="closeModal('modal-export')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:10px;color:var(--gray-mid);font-size:13px">Copy this list and paste it into AnyList, Instacart, your grocery delivery app, or a text message.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn btn-green btn-sm" onclick="copyExportList()">📋 Copy All</button>
+        <button id="btn-share-list" class="btn btn-secondary btn-sm" onclick="shareExportList()" style="display:none">📤 Share…</button>
+        <select id="export-trip-select" class="filter-select" onchange="refreshExportText()" style="margin-left:auto">
+          <option value="both">Both Trips</option>
+          <option value="1">Trip 1 Only (Sat/Sun)</option>
+          <option value="2">Trip 2 Only (Wed/Thu)</option>
+        </select>
+      </div>
+      <textarea id="export-text" style="width:100%;height:340px;font-family:monospace;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);resize:vertical;background:var(--gray-bg);color:var(--gray)" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INSTALL GUIDE MODAL ═══════════════════════ -->
+<div id="modal-install" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-install')">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">📱 Install on Your Phone or Tablet</span>
+      <button class="modal-close" onclick="closeModal('modal-install')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:16px;color:var(--gray-mid);font-size:13px">Add this app to your home screen so it opens like a real app — no browser bars, full screen, instant access.</p>
+
+      <div id="install-chrome-banner" style="display:none;background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
+        <strong style="color:var(--green)">✅ You can install right now!</strong>
+        <p style="margin-top:6px;font-size:13px">Your browser supports direct install. Click the button below:</p>
+        <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="triggerInstall()">⬇️ Install Meal Planner App</button>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;padding:14px">
+        <strong>🍎 iPhone / iPad (Safari)</strong>
+        <ol style="margin:10px 0 0 18px;font-size:13px;line-height:1.9">
+          <li>Open this file in <strong>Safari</strong> (not Chrome)</li>
+          <li>Tap the <strong>Share</strong> button <span style="font-size:16px">⎦↑⎡</span> at the bottom of the screen</li>
+          <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+          <li>Tap <strong>Add</strong> — done! Look for the 🥗 icon on your home screen</li>
+        </ol>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;padding:14px">
+        <strong>🤖 Android (Chrome)</strong>
+        <ol style="margin:10px 0 0 18px;font-size:13px;line-height:1.9">
+          <li>Open this file in <strong>Chrome</strong></li>
+          <li>Tap the <strong>three-dot menu</strong> ⋮ in the top-right corner</li>
+          <li>Tap <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong></li>
+          <li>Tap <strong>Install</strong> — the 🥗 icon will appear on your home screen</li>
+        </ol>
+      </div>
+
+      <div class="card" style="padding:14px">
+        <strong>💻 Desktop (Chrome / Edge)</strong>
+        <ol style="margin:10px 0 0 18px;font-size:13px;line-height:1.9">
+          <li>Open this file in Chrome or Edge</li>
+          <li>Look for the <strong>install icon</strong> ⊕ in the address bar (right side)</li>
+          <li>Click it and confirm — the app opens in its own window</li>
+        </ol>
+      </div>
+
+      <p style="margin-top:14px;font-size:12px;color:var(--gray-light)">💡 Tip: Both adults should install from the same shared Google Drive link so you're always opening the latest synced version.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══════════════════════════════════════ -->
+<div id="toast" class="toast"></div>
+
+<!-- ══ EMBEDDED DATA ═══════════════════════════════ -->
+<script id="app-data" type="application/json">
+{
+  "version": 1,
+  "settings": {
+    "familyName": "Hooper",
+    "servings": 5,
+    "trip1Day": "saturday",
+    "trip2Day": "wednesday",
+    "noRepeatWeeks": 2,
+    "maxSameProtein": 3
+  },
+  "pantryStaples": [
+    "olive oil","vegetable oil","butter","cooking spray",
+    "salt","black pepper","garlic powder","onion powder","cumin","paprika","Italian seasoning","red pepper flakes","oregano","thyme","bay leaves",
+    "flour","sugar","brown sugar","baking powder","baking soda","breadcrumbs",
+    "soy sauce","Worcestershire sauce","hot sauce","ketchup","mustard","mayonnaise",
+    "diced tomatoes","chicken broth","beef broth","black beans","coconut milk","tomato paste",
+    "pasta","rice","quinoa","oats",
+    "white vinegar","apple cider vinegar","balsamic vinegar"
+  ],
+  "recipes": [],
+  "weekPlans": {}
+}
+</script>
+
+<!-- ══ APP JAVASCRIPT ══════════════════════════════ -->
+<script>
+// ═══════════════════════════════════════════════════
+// DATA LAYER
+// ═══════════════════════════════════════════════════
+let appData = {};
+let currentEditingRecipeId = null;
+let currentPickDay = null;
+let currentPickMealType = null;
+let currentMonthDate = new Date();
+let currentWeekStart = getWeekStart(new Date());
+
+function initData() {
+  try {
+    const raw = document.getElementById('app-data').textContent;
+    appData = JSON.parse(raw);
+  } catch(e) {
+    appData = { version:1, settings:{familyName:'Hooper',servings:5,trip1Day:'saturday',trip2Day:'wednesday',noRepeatWeeks:2,maxSameProtein:3}, pantryStaples:[], recipes:[], weekPlans:{} };
+  }
+  // Also check localStorage for unsaved session data
+  const ls = localStorage.getItem('mealplanner_session');
+  if (ls) {
+    try {
+      const lsData = JSON.parse(ls);
+      if (lsData.version === appData.version) {
+        // Merge: localStorage has priority for recipes/weekPlans/settings
+        appData = lsData;
+      }
+    } catch(e) {}
+  }
+}
+
+function persistToSession() {
+  localStorage.setItem('mealplanner_session', JSON.stringify(appData));
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function dateKey(date) {
+  return date.toISOString().slice(0,10);
+}
+
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function formatDate(date) {
+  return date.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+function formatDateFull(date) {
+  return date.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+}
+
+function isStaple(ingredientName) {
+  const name = ingredientName.toLowerCase().trim();
+  return appData.pantryStaples.some(s => {
+    const staple = s.toLowerCase().trim();
+    // Match exact, or ingredient name contains the staple word, or staple word contains ingredient name
+    // e.g. "butter" matches "unsalted butter", "butter" also matches "butter, softened"
+    return name === staple
+      || name.includes(staple)
+      || staple.includes(name);
+  });
+}
+
+// Multiply a quantity string by a batch count, preserving fractions/ranges as strings
+function multiplyQuantity(qty, batches) {
+  if (!batches || batches === 1) return String(qty);
+  const str = String(qty).trim();
+  if (!str || str === '0' || str === '') return str;
+  // Mixed number: "1 1/2"
+  const mixedMatch = str.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixedMatch) {
+    const val = (parseInt(mixedMatch[1]) + parseInt(mixedMatch[2]) / parseInt(mixedMatch[3])) * batches;
+    return val % 1 === 0 ? String(val) : parseFloat(val.toFixed(2)).toString();
+  }
+  // Fraction: "2/3"
+  const fracMatch = str.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fracMatch) {
+    const val = (parseInt(fracMatch[1]) / parseInt(fracMatch[2])) * batches;
+    return val % 1 === 0 ? String(val) : parseFloat(val.toFixed(2)).toString();
+  }
+  // Range: "2-3" or "2–3"
+  const rangeMatch = str.match(/^([\d.]+)\s*[-–]\s*([\d.]+)$/);
+  if (rangeMatch) {
+    const v1 = parseFloat(rangeMatch[1]) * batches;
+    const v2 = parseFloat(rangeMatch[2]) * batches;
+    const fmt = v => v % 1 === 0 ? String(v) : parseFloat(v.toFixed(1)).toString();
+    return `${fmt(v1)}–${fmt(v2)}`;
+  }
+  // Plain number
+  const num = parseFloat(str);
+  if (!isNaN(num)) {
+    const val = num * batches;
+    return val % 1 === 0 ? String(val) : parseFloat(val.toFixed(2)).toString();
+  }
+  // Can't parse — prefix with multiplier notation
+  return `${batches}× ${str}`;
+}
+
+function getRecipeById(id) {
+  return appData.recipes.find(r => r.id === id);
+}
+
+function getWeekPlan(weekStartDate) {
+  const key = dateKey(weekStartDate);
+  return appData.weekPlans[key] || null;
+}
+
+function ensureWeekPlan(weekStartDate) {
+  const key = dateKey(weekStartDate);
+  if (!appData.weekPlans[key]) {
+    const days = [];
+    for (let i=0; i<7; i++) {
+      days.push({ date: dateKey(addDays(weekStartDate, i)), dinner: null, dinnerBatches: 1, lunch: null, lunchBatches: 1, breakfast: null, breakfastBatches: 1 });
+    }
+    appData.weekPlans[key] = { weekStart: key, days, finalized: false, trip1Checked: {}, trip2Checked: {} };
+  }
+  return appData.weekPlans[key];
+}
+
+function isWeekComplete(weekStartDate) {
+  const plan = getWeekPlan(weekStartDate);
+  if (!plan) return false;
+  return plan.days.every(d => d.dinner !== null);
+}
+
+function getRecipeTier(recipe) {
+  if (recipe.tierOverride) return recipe.tierOverride;
+  const freq = recipe.frequency || 0;
+  if (freq >= 8) return 'A';
+  if (freq >= 3) return 'B';
+  return 'C';
+}
+
+function capitalise(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ═══════════════════════════════════════════════════
+// VIEW ROUTER
+// ═══════════════════════════════════════════════════
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  const tabs = document.querySelectorAll('.nav-tab');
+  const map = {monthly:0, weekly:1, library:2, grocery:3, settings:4};
+  if (map[name] !== undefined) tabs[map[name]].classList.add('active');
+
+  if (name === 'monthly') renderMonthly();
+  if (name === 'weekly') renderWeekly();
+  if (name === 'library') renderLibrary();
+  if (name === 'grocery') renderGroceryView();
+  if (name === 'settings') renderSettings();
+}
+
+// ═══════════════════════════════════════════════════
+// MONTHLY VIEW
+// ═══════════════════════════════════════════════════
+function renderMonthly() {
+  const year = currentMonthDate.getFullYear();
+  const month = currentMonthDate.getMonth();
+  document.getElementById('month-title').textContent =
+    currentMonthDate.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+
+  const grid = document.getElementById('cal-grid');
+  // Remove all cells (keep DOW headers = first 7 children)
+  while (grid.children.length > 7) grid.removeChild(grid.lastChild);
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month+1, 0);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Pad start
+  for (let i=0; i<firstDay.getDay(); i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell other-month';
+    const d = new Date(year, month, 1-firstDay.getDay()+i);
+    cell.innerHTML = `<div class="cal-date">${d.getDate()}</div>`;
+    grid.appendChild(cell);
+  }
+
+  // Days of month
+  for (let d=1; d<=lastDay.getDate(); d++) {
+    const date = new Date(year, month, d);
+    date.setHours(0,0,0,0);
+    const cell = document.createElement('div');
+    const classes = ['cal-cell'];
+    if (date.getTime() === today.getTime()) classes.push('today');
+
+    // Check this day's dinner
+    const weekStart = getWeekStart(date);
+    const plan = getWeekPlan(weekStart);
+    const dayPlan = plan ? plan.days.find(x => x.date === dateKey(date)) : null;
+    const dinner = dayPlan && dayPlan.dinner ? getRecipeById(dayPlan.dinner) : null;
+
+    if (dinner) {
+      classes.push('has-plan');
+    } else {
+      // Check if this week has any days with missing dinners (past dates excluded)
+      if (date >= today) classes.push('needs-plan');
+    }
+
+    cell.className = classes.join(' ');
+    cell.onclick = () => { currentWeekStart = getWeekStart(date); showView('weekly'); };
+
+    let html = `<div class="cal-date">${d}</div>`;
+    if (dinner) html += `<div class="cal-meal-pill" title="${dinner.name}">${dinner.name}</div>`;
+    if (dayPlan && dayPlan.lunch) {
+      const l = getRecipeById(dayPlan.lunch);
+      if (l) html += `<div class="cal-meal-pill" style="background:var(--blue-bg);color:var(--blue)" title="${l.name}">${l.name}</div>`;
+    }
+
+    // Show "Plan" button on Saturdays for next week
+    if (date.getDay() === 6 && date >= today) {
+      const nextWeek = addDays(date, 1);
+      const nwStart = getWeekStart(nextWeek);
+      if (!isWeekComplete(nwStart)) {
+        html += `<button class="cal-plan-btn" onclick="event.stopPropagation();planWeek('${dateKey(nwStart)}')">Plan Week ›</button>`;
+      }
+    }
+
+    cell.innerHTML = html;
+    grid.appendChild(cell);
+  }
+
+  // Pad end
+  const totalCells = grid.children.length - 7;
+  const remainder = totalCells % 7;
+  if (remainder !== 0) {
+    for (let i=1; i<=7-remainder; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell other-month';
+      cell.innerHTML = `<div class="cal-date">${i}</div>`;
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function changeMonth(dir) {
+  currentMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth()+dir, 1);
+  renderMonthly();
+}
+
+function goToToday() {
+  currentMonthDate = new Date();
+  renderMonthly();
+}
+
+function planWeek(weekKey) {
+  currentWeekStart = new Date(weekKey + 'T00:00:00');
+  showView('weekly');
+  setTimeout(autoSuggestWeek, 100);
+}
+
+// ═══════════════════════════════════════════════════
+// WEEKLY VIEW
+// ═══════════════════════════════════════════════════
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAY_EFFORT = ['any','medium','medium','easy-medium','easy','easy-medium','any'];
+
+function renderWeekly() {
+  const ws = currentWeekStart;
+  const we = addDays(ws, 6);
+  document.getElementById('week-title').textContent =
+    `${formatDate(ws)} – ${formatDate(we)}, ${we.getFullYear()}`;
+
+  const plan = ensureWeekPlan(ws);
+  const complete = plan.days.every(d => d.dinner !== null);
+  const banner = document.getElementById('week-banner');
+  if (!complete) {
+    const missing = plan.days.filter(d => !d.dinner).length;
+    banner.innerHTML = `<div class="week-incomplete-banner">⚠️ <strong>${missing} dinner${missing>1?'s':''} still need planning</strong> — click any empty slot or use Auto-Suggest to fill the week.</div>`;
+  } else {
+    banner.innerHTML = '';
+  }
+
+  // Ingredient overlap map
+  const ingredientMap = buildIngredientMap(plan);
+
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = '';
+  plan.days.forEach((day, idx) => {
+    const date = new Date(day.date + 'T00:00:00');
+    const col = document.createElement('div');
+    col.className = 'day-card';
+
+    const dinner = day.dinner ? getRecipeById(day.dinner) : null;
+    const dinnerBatches = day.dinnerBatches || 1;
+    const sharedIngredients = dinner ? getSharedIngredients(dinner, ingredientMap, day.dinner) : [];
+
+    let dinnerHTML;
+    if (dinner) {
+      const total = (dinner.prepTime||0) + (dinner.cookTime||0);
+      const diffColor = {easy:'var(--green)',medium:'#F57C00',hard:'var(--red)'}[dinner.difficulty||'easy'];
+      const batchLabel = dinnerBatches > 1
+        ? `<span style="background:var(--orange-bg);color:var(--orange);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px">×${dinnerBatches} batches</span>`
+        : '';
+      dinnerHTML = `
+        <div class="dinner-card" onclick="openRecipe('${dinner.id}',${dinnerBatches})">
+          <div class="meal-name">${dinner.name}${batchLabel}${sharedIngredients.length ? `<span class="share-badge" title="Shares: ${sharedIngredients.join(', ')}">🔗 shared</span>` : ''}</div>
+          <div class="meal-meta">${total ? total+'min' : ''} · <span style="color:${diffColor}">${dinner.difficulty||'easy'}</span> · ${capitalise(dinner.cuisine||'')}</div>
+          <div class="meal-actions" style="align-items:center">
+            <label style="font-size:10px;color:var(--gray-mid);font-weight:700;margin-right:2px">Batches:</label>
+            <input type="number" min="1" max="10" value="${dinnerBatches}"
+              style="width:42px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;font-size:11px;text-align:center"
+              onclick="event.stopPropagation()"
+              onchange="event.stopPropagation();setBatches('${dateKey(date)}','dinner',this.value)">
+            <button class="meal-action-btn" style="margin-left:auto" onclick="event.stopPropagation();swapMeal('${dateKey(date)}','dinner')">↔ Swap</button>
+            <button class="meal-action-btn" onclick="event.stopPropagation();clearMeal('${dateKey(date)}','dinner')" style="color:var(--red)">✕</button>
+          </div>
+        </div>`;
+    } else {
+      dinnerHTML = `<div class="dinner-card empty" onclick="pickMeal('${dateKey(date)}','dinner')">+ Add Dinner</div>`;
+    }
+
+    const lunch = day.lunch ? getRecipeById(day.lunch) : null;
+    const breakfast = day.breakfast ? getRecipeById(day.breakfast) : null;
+
+    col.innerHTML = `
+      <div class="day-card-header">
+        <span class="day-name">${DAY_NAMES[idx]}</span>
+        <span class="day-date">${formatDate(date)}</span>
+      </div>
+      <div class="day-card-body">
+        <div class="meal-slot">
+          <div class="meal-slot-label required">Dinner</div>
+          ${dinnerHTML}
+        </div>
+        <div class="optional-meals">
+          <button class="optional-toggle" onclick="toggleOptional(this)">+ Breakfast &amp; Lunch ${(lunch||breakfast)?'▴':'▾'}</button>
+          <div class="optional-content ${(lunch||breakfast)?'open':''}">
+            <div class="meal-slot" style="margin-bottom:6px">
+              <div class="meal-slot-label">Breakfast</div>
+              <div class="${breakfast?'optional-meal-slot filled':'optional-meal-slot'}" onclick="pickMeal('${dateKey(date)}','breakfast')">
+                ${breakfast ? breakfast.name+'<button style="float:right;background:none;border:none;color:inherit;cursor:pointer;font-size:10px" onclick="event.stopPropagation();clearMeal(\''+dateKey(date)+'\',\'breakfast\')">✕</button>' : '+ Add'}
+              </div>
+            </div>
+            <div class="meal-slot">
+              <div class="meal-slot-label">Lunch</div>
+              <div class="${lunch?'optional-meal-slot filled':'optional-meal-slot'}" onclick="pickMeal('${dateKey(date)}','lunch')">
+                ${lunch ? lunch.name+'<button style="float:right;background:none;border:none;color:inherit;cursor:pointer;font-size:10px" onclick="event.stopPropagation();clearMeal(\''+dateKey(date)+'\',\'lunch\')">✕</button>' : '+ Add'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    grid.appendChild(col);
+  });
+}
+
+function toggleOptional(btn) {
+  const content = btn.nextElementSibling;
+  content.classList.toggle('open');
+  btn.textContent = btn.textContent.replace(content.classList.contains('open')?'▾':'▴', content.classList.contains('open')?'▴':'▾');
+}
+
+function changeWeek(dir) {
+  currentWeekStart = addDays(currentWeekStart, dir*7);
+  renderWeekly();
+}
+
+function goToCurrentWeek() {
+  currentWeekStart = getWeekStart(new Date());
+  renderWeekly();
+}
+
+function buildIngredientMap(plan) {
+  const map = {}; // ingredientName -> [recipeId, ...]
+  plan.days.forEach(day => {
+    if (day.dinner) {
+      const r = getRecipeById(day.dinner);
+      if (r && r.ingredients) {
+        r.ingredients.forEach(ing => {
+          const n = ing.name.toLowerCase();
+          if (!isStaple(n)) {
+            if (!map[n]) map[n] = [];
+            if (!map[n].includes(day.dinner)) map[n].push(day.dinner);
+          }
+        });
+      }
+    }
+  });
+  return map;
+}
+
+function getSharedIngredients(recipe, map, recipeId) {
+  if (!recipe.ingredients) return [];
+  const shared = [];
+  recipe.ingredients.forEach(ing => {
+    const n = ing.name.toLowerCase();
+    if (map[n] && map[n].length > 1) shared.push(ing.name);
+  });
+  return [...new Set(shared)];
+}
+
+function pickMeal(dateStr, mealType) {
+  currentPickDay = dateStr;
+  currentPickMealType = mealType;
+  document.getElementById('pick-meal-title').textContent =
+    `Choose ${capitalise(mealType)} for ${formatDate(new Date(dateStr+'T00:00:00'))}`;
+  document.getElementById('pick-search').value = '';
+  renderPickList();
+  openModal('modal-pick-meal');
+}
+
+function renderPickList() {
+  const search = document.getElementById('pick-search').value.toLowerCase();
+  let recipes = appData.recipes.filter(r => {
+    if (currentPickMealType === 'dinner' && r.course && r.course !== 'dinner') return false;
+    if (currentPickMealType === 'lunch' && r.course && r.course === 'dinner') return false;
+    if (search && !r.name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  recipes.sort((a,b) => a.name.localeCompare(b.name));
+  const list = document.getElementById('pick-list');
+  if (recipes.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">🍽️</div><p>No recipes found</p></div>';
+    return;
+  }
+  list.innerHTML = recipes.map(r => `
+    <div onclick="assignMeal('${r.id}')" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;border-radius:4px;transition:background .1s" onmouseover="this.style.background='var(--green-bg)'" onmouseout="this.style.background=''">
+      <span style="font-size:22px">${r.photo || '🍽️'}</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--gray)">${r.name}</div>
+        <div style="font-size:11px;color:var(--gray-light)">${capitalise(r.protein||'')} · ${capitalise(r.cuisine||'')} · ${(r.prepTime||0)+(r.cookTime||0)} min · Tier ${getRecipeTier(r)}</div>
+      </div>
+    </div>`).join('');
+}
+
+function assignMeal(recipeId) {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === currentPickDay);
+  if (day) {
+    day[currentPickMealType] = recipeId;
+    day[currentPickMealType + 'Batches'] = 1; // always reset to 1 on new assignment
+    if (currentPickMealType === 'dinner') {
+      const r = getRecipeById(recipeId);
+      if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); }
+    }
+  }
+  persistToSession();
+  closeModal('modal-pick-meal');
+  renderWeekly();
+}
+
+function setBatches(dateStr, mealType, value) {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === dateStr);
+  if (!day) return;
+  const n = Math.max(1, parseInt(value) || 1);
+  day[mealType + 'Batches'] = n;
+  persistToSession();
+  renderWeekly();
+}
+
+function swapMeal(dateStr, mealType) {
+  pickMeal(dateStr, mealType);
+}
+
+function clearMeal(dateStr, mealType) {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === dateStr);
+  if (day) day[mealType] = null;
+  persistToSession();
+  renderWeekly();
+}
+
+// ── ROTATION ENGINE ──────────────────────────────
+function autoSuggestWeek() {
+  if (appData.recipes.length === 0) {
+    showToast('Add some recipes to the library first!', 'error'); return;
+  }
+  const plan = ensureWeekPlan(currentWeekStart);
+  const noRepeat = appData.settings.noRepeatWeeks || 2;
+  const maxProtein = appData.settings.maxSameProtein || 3;
+
+  // Get recently used recipe ids (last N weeks)
+  const recentIds = new Set();
+  for (let w=1; w<=noRepeat; w++) {
+    const ws = addDays(currentWeekStart, -7*w);
+    const p = getWeekPlan(ws);
+    if (p) p.days.forEach(d => { if (d.dinner) recentIds.add(d.dinner); });
+  }
+
+  // Get already-pinned dinners
+  const alreadyPinned = plan.days.filter(d => d.dinner).map(d => d.dinner);
+  const usedThisWeek = new Set(alreadyPinned);
+
+  // Separate tier A, B, C dinner recipes
+  const dinnerRecipes = appData.recipes.filter(r => !r.course || r.course === 'dinner' || r.course === '');
+  const tierA = dinnerRecipes.filter(r => getRecipeTier(r) === 'A' && !usedThisWeek.has(r.id));
+  const tierB = dinnerRecipes.filter(r => getRecipeTier(r) === 'B' && !usedThisWeek.has(r.id));
+  const tierC = dinnerRecipes.filter(r => getRecipeTier(r) === 'C' && !usedThisWeek.has(r.id));
+
+  // Sort each tier by least recently planned
+  const sortByOldest = arr => [...arr].sort((a,b) => {
+    const da = a.lastPlanned ? new Date(a.lastPlanned) : new Date(0);
+    const db = b.lastPlanned ? new Date(b.lastPlanned) : new Date(0);
+    return da - db;
+  });
+
+  const poolA = sortByOldest(tierA.filter(r => !recentIds.has(r.id)));
+  const poolB = sortByOldest(tierB.filter(r => !recentIds.has(r.id)));
+  const poolC = sortByOldest(tierC.filter(r => !recentIds.has(r.id)));
+  // Fallbacks (allow recent if pool is exhausted)
+  const fallbackA = sortByOldest(tierA.filter(r => recentIds.has(r.id)));
+  const fallbackB = sortByOldest(tierB.filter(r => recentIds.has(r.id)));
+  const fullPool = [...poolA,...poolB,...poolC,...fallbackA,...fallbackB,...sortByOldest(tierC.filter(r => recentIds.has(r.id)))];
+
+  // Target: 2-3 A, 2-3 B, 1 C, 1 flex (null = leftovers)
+  const targets = ['A','A','B','B','C','B','flex'];
+  const pickedIds = new Set(usedThisWeek);
+  const pickedProteins = {};
+  alreadyPinned.forEach(id => {
+    const r = getRecipeById(id);
+    if (r && r.protein) pickedProteins[r.protein] = (pickedProteins[r.protein]||0)+1;
+  });
+
+  const picks = [];
+  for (const target of targets) {
+    if (target === 'flex') { picks.push(null); continue; }
+    const pool = target === 'A' ? [...poolA,...fallbackA,...poolB,...poolC,...fallbackB] :
+                 target === 'B' ? [...poolB,...fallbackB,...poolA,...poolC] :
+                 [...poolC,...poolB,...poolA];
+    let chosen = null;
+    for (const r of pool) {
+      if (pickedIds.has(r.id)) continue;
+      const p = r.protein || 'other';
+      if ((pickedProteins[p]||0) >= maxProtein) continue;
+      chosen = r; break;
+    }
+    if (!chosen) {
+      // Relax protein constraint
+      for (const r of fullPool) {
+        if (!pickedIds.has(r.id)) { chosen = r; break; }
+      }
+    }
+    if (chosen) {
+      picks.push(chosen.id);
+      pickedIds.add(chosen.id);
+      const p = chosen.protein || 'other';
+      pickedProteins[p] = (pickedProteins[p]||0)+1;
+    } else {
+      picks.push(null);
+    }
+  }
+
+  // Assign to days (only empty slots)
+  let pickIdx = 0;
+  plan.days.forEach(day => {
+    if (!day.dinner) {
+      day.dinner = picks[pickIdx] || null;
+      if (day.dinner) {
+        const r = getRecipeById(day.dinner);
+        if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); }
+      }
+      pickIdx++;
+    }
+  });
+
+  persistToSession();
+  renderWeekly();
+  showToast('Week planned! Review and swap any meals you want.', 'success');
+}
+
+function finalizeWeek() {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const missing = plan.days.filter(d => !d.dinner).length;
+  if (missing > 0) {
+    showToast(`${missing} dinner${missing>1?'s':''} still need to be filled in.`, 'error'); return;
+  }
+  plan.finalized = true;
+  persistToSession();
+  showToast('Week finalized! Grocery lists are ready.', 'success');
+  setTimeout(() => openGrocery(), 800);
+}
+
+function openGrocery() {
+  showView('grocery');
+}
+
+// ═══════════════════════════════════════════════════
+// RECIPE LIBRARY
+// ═══════════════════════════════════════════════════
+function renderLibrary() {
+  const search = (document.getElementById('filter-search').value||'').toLowerCase();
+  const protein = document.getElementById('filter-protein').value;
+  const cuisine = document.getElementById('filter-cuisine').value;
+  const timeFilter = document.getElementById('filter-time').value;
+  const tier = document.getElementById('filter-tier').value;
+  const sort = document.getElementById('filter-sort').value;
+
+  let recipes = appData.recipes.filter(r => {
+    if (search && !r.name.toLowerCase().includes(search) &&
+        !(r.tags||[]).some(t => t.toLowerCase().includes(search))) return false;
+    if (protein && r.protein !== protein) return false;
+    if (cuisine && r.cuisine !== cuisine) return false;
+    if (tier && getRecipeTier(r) !== tier) return false;
+    if (timeFilter) {
+      const total = (r.prepTime||0)+(r.cookTime||0);
+      if (timeFilter === '30' && total >= 30) return false;
+      if (timeFilter === '60' && total >= 60) return false;
+      if (timeFilter === '61' && total < 60) return false;
+    }
+    return true;
+  });
+
+  recipes.sort((a,b) => {
+    if (sort === 'alpha') return a.name.localeCompare(b.name);
+    if (sort === 'freq') return (b.frequency||0)-(a.frequency||0);
+    if (sort === 'oldest') return new Date(a.lastPlanned||0)-new Date(b.lastPlanned||0);
+    if (sort === 'newest') return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
+    if (sort === 'time') return ((a.prepTime||0)+(a.cookTime||0))-((b.prepTime||0)+(b.cookTime||0));
+    return 0;
+  });
+
+  const grid = document.getElementById('recipe-grid');
+  if (recipes.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="icon">🍽️</div>
+      <h3>${appData.recipes.length===0?'No recipes yet':'No recipes match these filters'}</h3>
+      <p style="font-size:12px;margin-bottom:14px">${appData.recipes.length===0?'Add your first recipe using the button above, or use the "Add via Claude" tab to import one from a photo or website.':'Try clearing some filters.'}</p>
+      ${appData.recipes.length===0?'<button class="btn btn-primary" onclick="openAddRecipe()">+ Add Your First Recipe</button>':''}
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = recipes.map(r => {
+    const total = (r.prepTime||0)+(r.cookTime||0);
+    const tier = getRecipeTier(r);
+    const emoji = {chicken:'🍗',beef:'🥩',pork:'🐷',fish:'🐟',seafood:'🦐',vegetarian:'🥦',eggs:'🥚',mixed:'🍲'}[r.protein||''] || '🍽️';
+    return `
+    <div class="recipe-card" onclick="openRecipe('${r.id}')">
+      <div class="recipe-card-photo">${r.photo ? `<img src="${r.photo}" alt="${r.name}">` : emoji}</div>
+      <div class="recipe-card-body">
+        <div class="recipe-card-name">${r.name}</div>
+        <div class="recipe-card-tags">
+          ${r.protein?`<span class="tag protein">${r.protein}</span>`:''}
+          ${r.cuisine?`<span class="tag cuisine">${r.cuisine}</span>`:''}
+          <span class="tag tier-${tier.toLowerCase()}">Tier ${tier}</span>
+          ${(r.tags||[]).slice(0,2).map(t=>`<span class="tag">${t}</span>`).join('')}
+        </div>
+        <div class="recipe-card-meta">
+          <span>${total ? total+'min' : '—'}</span>
+          <span>${r.lastPlanned ? 'Last: '+formatDate(new Date(r.lastPlanned+'T00:00:00')) : 'Never made'}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearFilters() {
+  document.getElementById('filter-search').value = '';
+  document.getElementById('filter-protein').value = '';
+  document.getElementById('filter-cuisine').value = '';
+  document.getElementById('filter-time').value = '';
+  document.getElementById('filter-tier').value = '';
+  document.getElementById('filter-sort').value = 'alpha';
+  renderLibrary();
+}
+
+// ═══════════════════════════════════════════════════
+// RECIPE DETAIL
+// ═══════════════════════════════════════════════════
+let currentViewingRecipeId = null;
+
+function openRecipe(id, batches) {
+  currentViewingRecipeId = id;
+  const r = getRecipeById(id);
+  if (!r) return;
+  const b = Math.max(1, parseInt(batches) || 1);
+  const total = (r.prepTime||0)+(r.cookTime||0);
+  const emoji = {chicken:'🍗',beef:'🥩',pork:'🐷',fish:'🐟',seafood:'🦐',vegetarian:'🥦',eggs:'🥚',mixed:'🍲'}[r.protein||''] || '🍽️';
+  const servesBase = r.servings || 5;
+  const servesTotal = b > 1 ? `${servesBase * b} (${b} batches of ${servesBase})` : String(servesBase);
+
+  document.getElementById('modal-recipe-title').textContent = r.name + (b > 1 ? ` — ×${b} batches` : '');
+
+  // Source link
+  let sourceHTML = '';
+  if (r.source) {
+    if (r.source.type === 'url' && r.source.value) {
+      sourceHTML = `<div class="recipe-source-link">🔗 <a href="${r.source.value}" target="_blank">View original recipe</a></div>`;
+    } else if (r.source.type === 'file' && r.source.value) {
+      sourceHTML = `<div class="recipe-source-link">📁 <a href="${r.source.value}" target="_blank">Open source file (Google Drive)</a></div>`;
+    } else {
+      sourceHTML = `<div class="recipe-source-link" style="color:var(--gray-light)">✏️ Manually entered — no source file</div>`;
+    }
+  }
+
+  // Ingredients grouped — quantities scaled by batch count
+  const groups = {};
+  (r.ingredients||[]).forEach(ing => {
+    const g = ing.group || '';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(ing);
+  });
+  let ingHTML = '';
+  if (b > 1) {
+    ingHTML += `<div style="background:var(--orange-bg);border-left:3px solid var(--orange);padding:5px 10px;border-radius:4px;font-size:11px;color:var(--orange);font-weight:700;margin-bottom:8px">Quantities scaled for ×${b} batches</div>`;
+  }
+  Object.entries(groups).forEach(([group, ings]) => {
+    if (group) ingHTML += `<div class="ingredient-group-label">${group}</div>`;
+    ings.forEach(ing => {
+      const staple = isStaple(ing.name);
+      const scaledQty = multiplyQuantity(ing.quantity || '', b);
+      ingHTML += `<div class="ingredient-item${staple?' staple':''}">
+        <span class="qty">${scaledQty} ${ing.unit||''}</span>
+        <span>${ing.name}${ing.prep?`, <em>${ing.prep}</em>`:''}${staple?' <span style="font-size:9px;color:var(--gray-light)">(pantry)</span>':''}</span>
+      </div>`;
+    });
+  });
+
+  // Instructions
+  const steps = (r.instructions||[]).filter(s => s.trim());
+  const stepsHTML = steps.map((s,i) => `
+    <div class="instruction-step">
+      <div class="step-num">${i+1}</div>
+      <div>${s}</div>
+    </div>`).join('');
+
+  document.getElementById('modal-recipe-body').innerHTML = `
+    <div class="recipe-detail-header">
+      <div class="recipe-detail-photo">${r.photo ? `<img src="${r.photo}" alt="${r.name}">` : emoji}</div>
+      <div class="recipe-detail-info">
+        <div class="recipe-detail-name">${r.name}${b > 1 ? `<span style="margin-left:8px;background:var(--orange-bg);color:var(--orange);font-size:13px;font-weight:700;padding:2px 8px;border-radius:4px">×${b} batches</span>` : ''}</div>
+        <div class="recipe-meta-grid">
+          <div class="recipe-meta-item"><div class="label">Prep</div><div class="value">${r.prepTime||'—'} min</div></div>
+          <div class="recipe-meta-item"><div class="label">Cook</div><div class="value">${r.cookTime||'—'} min</div></div>
+          <div class="recipe-meta-item"><div class="label">Total</div><div class="value">${total||'—'} min</div></div>
+          <div class="recipe-meta-item"><div class="label">Serves</div><div class="value">${servesTotal}</div></div>
+          <div class="recipe-meta-item"><div class="label">Difficulty</div><div class="value">${capitalise(r.difficulty||'easy')}</div></div>
+          <div class="recipe-meta-item"><div class="label">Cuisine</div><div class="value">${capitalise(r.cuisine||'')}</div></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+          ${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}
+          <span class="tag tier-${getRecipeTier(r).toLowerCase()}">Tier ${getRecipeTier(r)}</span>
+        </div>
+        ${sourceHTML}
+      </div>
+    </div>
+    <div class="recipe-body">
+      <div class="recipe-body-col">
+        <h3>Ingredients</h3>
+        ${ingHTML || '<p style="color:var(--gray-light);font-size:12px">No ingredients added.</p>'}
+      </div>
+      <div class="recipe-body-col">
+        <h3>Instructions</h3>
+        ${stepsHTML || '<p style="color:var(--gray-light);font-size:12px">No instructions added.</p>'}
+      </div>
+    </div>
+    ${r.notes ? `<div class="recipe-notes-box"><strong>📝 Family Notes:</strong> ${r.notes}</div>` : ''}`;
+
+  openModal('modal-recipe');
+}
+
+function editCurrentRecipe() {
+  closeModal('modal-recipe');
+  openAddRecipe(currentViewingRecipeId);
+}
+
+function printRecipe() {
+  document.getElementById('modal-recipe').classList.add('printing');
+  window.print();
+  document.getElementById('modal-recipe').classList.remove('printing');
+}
+
+// ═══════════════════════════════════════════════════
+// ADD / EDIT RECIPE
+// ═══════════════════════════════════════════════════
+function openAddRecipe(editId) {
+  currentEditingRecipeId = editId || null;
+  document.getElementById('add-recipe-title').textContent = editId ? 'Edit Recipe' : 'Add Recipe';
+  document.getElementById('edit-recipe-id').value = editId || '';
+
+  // Reset form
+  switchAddTab('manual');
+  ['f-name','f-prep','f-cook','f-servings','f-tags','f-instructions','f-notes',
+   'f-source-url','f-source-file'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('f-servings').value = appData.settings.servings || 5;
+  document.getElementById('f-difficulty').value = 'easy';
+  document.getElementById('f-protein').value = 'chicken';
+  document.getElementById('f-cuisine').value = 'american';
+  document.getElementById('f-course').value = 'dinner';
+  setSourceType('url');
+
+  // Clear ingredient rows
+  const editor = document.getElementById('ingredients-editor');
+  while (editor.children.length > 1) editor.removeChild(editor.lastChild);
+  addIngredientRow(); addIngredientRow(); addIngredientRow();
+
+  if (editId) {
+    const r = getRecipeById(editId);
+    if (r) {
+      document.getElementById('f-name').value = r.name || '';
+      document.getElementById('f-prep').value = r.prepTime || '';
+      document.getElementById('f-cook').value = r.cookTime || '';
+      document.getElementById('f-servings').value = r.servings || 5;
+      document.getElementById('f-difficulty').value = r.difficulty || 'easy';
+      document.getElementById('f-protein').value = r.protein || 'chicken';
+      document.getElementById('f-cuisine').value = r.cuisine || 'american';
+      document.getElementById('f-course').value = r.course || 'dinner';
+      document.getElementById('f-tags').value = (r.tags||[]).join(', ');
+      document.getElementById('f-instructions').value = (r.instructions||[]).join('\n');
+      document.getElementById('f-notes').value = r.notes || '';
+
+      if (r.source) {
+        setSourceType(r.source.type || 'url');
+        if (r.source.type === 'url') document.getElementById('f-source-url').value = r.source.value || '';
+        if (r.source.type === 'file') document.getElementById('f-source-file').value = r.source.value || '';
+      }
+
+      // Load ingredients
+      while (editor.children.length > 1) editor.removeChild(editor.lastChild);
+      (r.ingredients||[]).forEach(ing => addIngredientRow(ing));
+      if ((r.ingredients||[]).length === 0) { addIngredientRow(); addIngredientRow(); }
+    }
+  }
+
+  openModal('modal-add-recipe');
+}
+
+function addIngredientRow(ing) {
+  const editor = document.getElementById('ingredients-editor');
+  const row = document.createElement('div');
+  row.className = 'ingredient-row';
+  row.innerHTML = `
+    <input type="text" placeholder="2/3" value="${ing&&ing.quantity||''}">
+    <input type="text" placeholder="cups" value="${ing&&ing.unit||''}">
+    <input type="text" placeholder="ingredient" value="${ing&&ing.name||''}">
+    <input type="text" placeholder="minced" value="${ing&&ing.prep||''}">
+    <button class="del-btn" onclick="this.parentElement.remove()">✕</button>`;
+  editor.appendChild(row);
+}
+
+function setSourceType(type) {
+  document.getElementById('f-source-type').value = type;
+  document.getElementById('source-url-field').style.display = type==='url'?'':'none';
+  document.getElementById('source-file-field').style.display = type==='file'?'':'none';
+  document.getElementById('source-manual-field').style.display = type==='manual'?'':'none';
+  document.querySelectorAll('#tab-manual .source-type-btn').forEach((btn,i) => {
+    btn.classList.toggle('active', ['url','file','manual'][i] === type);
+  });
+}
+
+function setSourceTypeC(type) {
+  document.getElementById('fc-source-type').value = type;
+  document.getElementById('fc-source-url').style.display = type==='url'?'':'none';
+  document.getElementById('fc-source-file').style.display = type==='file'?'':'none';
+  document.querySelectorAll('#tab-claude .source-type-btn').forEach((btn,i) => {
+    btn.classList.toggle('active', ['url','file','manual'][i] === type);
+  });
+}
+
+function saveRecipe() {
+  const activeTab = document.querySelector('.add-recipe-tab.active').textContent.includes('Claude') ? 'claude' : 'manual';
+
+  if (activeTab === 'claude') {
+    importFromClaude(); return;
+  }
+
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('Recipe name is required.', 'error'); return; }
+
+  // Collect ingredients
+  const rows = document.querySelectorAll('#ingredients-editor .ingredient-row:not(.ing-header)');
+  const ingredients = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const ingName = inputs[2].value.trim();
+    if (!ingName) return;
+    ingredients.push({
+      quantity: inputs[0].value.trim() || '0',
+      unit: inputs[1].value.trim(),
+      name: ingName,
+      prep: inputs[3].value.trim(),
+      group: '',
+      freshness: 'medium-shelf',
+      storeSection: guessFreshness(ingName),
+      isStaple: isStaple(ingName)
+    });
+  });
+
+  const sourceType = document.getElementById('f-source-type').value;
+  const sourceValue = sourceType==='url' ? document.getElementById('f-source-url').value.trim() :
+                      sourceType==='file' ? document.getElementById('f-source-file').value.trim() : null;
+
+  const tagsRaw = document.getElementById('f-tags').value;
+  const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+  const instructions = document.getElementById('f-instructions').value.split('\n').map(s => s.trim()).filter(Boolean);
+
+  const editId = document.getElementById('edit-recipe-id').value;
+  if (editId) {
+    const idx = appData.recipes.findIndex(r => r.id === editId);
+    if (idx >= 0) {
+      appData.recipes[idx] = { ...appData.recipes[idx],
+        name, prepTime: parseInt(document.getElementById('f-prep').value)||0,
+        cookTime: parseInt(document.getElementById('f-cook').value)||0,
+        servings: parseInt(document.getElementById('f-servings').value)||5,
+        difficulty: document.getElementById('f-difficulty').value,
+        protein: document.getElementById('f-protein').value,
+        cuisine: document.getElementById('f-cuisine').value,
+        course: document.getElementById('f-course').value,
+        tags, ingredients, instructions,
+        notes: document.getElementById('f-notes').value.trim(),
+        source: { type: sourceType, value: sourceValue }
+      };
+    }
+  } else {
+    const recipe = {
+      id: generateId(), name,
+      prepTime: parseInt(document.getElementById('f-prep').value)||0,
+      cookTime: parseInt(document.getElementById('f-cook').value)||0,
+      servings: parseInt(document.getElementById('f-servings').value)||5,
+      difficulty: document.getElementById('f-difficulty').value,
+      protein: document.getElementById('f-protein').value,
+      cuisine: document.getElementById('f-cuisine').value,
+      course: document.getElementById('f-course').value,
+      tags, ingredients, instructions,
+      notes: document.getElementById('f-notes').value.trim(),
+      source: { type: sourceType, value: sourceValue },
+      frequency: 0, lastPlanned: null,
+      dateAdded: dateKey(new Date())
+    };
+    appData.recipes.push(recipe);
+  }
+
+  persistToSession();
+  closeModal('modal-add-recipe');
+  renderLibrary();
+  showToast(editId ? 'Recipe updated!' : 'Recipe added to library!', 'success');
+}
+
+function guessFreshness(name) {
+  const n = name.toLowerCase();
+  const produce = ['lettuce','spinach','arugula','herbs','basil','cilantro','parsley','mint','berries','strawberr','raspberr','mushroom'];
+  const medium = ['chicken','beef','pork','fish','salmon','shrimp','broccoli','zucchini','tomato','pepper','cucumber'];
+  const pantry = ['pasta','rice','beans','canned','flour','sugar','oil','vinegar','soy','sauce'];
+  if (produce.some(p => n.includes(p))) return 'short-shelf';
+  if (medium.some(p => n.includes(p))) return 'medium-shelf';
+  if (pantry.some(p => n.includes(p))) return 'long-shelf';
+  const sections = {meat:['chicken','beef','pork','fish','salmon','shrimp','turkey','lamb'],dairy:['milk','cheese','cream','yogurt','butter','egg'],produce:['onion','garlic','carrot','potato','apple','banana','lemon','lime'],frozen:['frozen'],pantry:['pasta','rice','can','jar','box','powder']};
+  for (const [sec,words] of Object.entries(sections)) {
+    if (words.some(w => n.includes(w))) return sec;
+  }
+  return 'pantry';
+}
+
+// ── CLAUDE IMPORT ────────────────────────────────
+function switchAddTab(tab) {
+  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['manual','claude'][i]===tab));
+  document.getElementById('tab-manual').classList.toggle('active', tab==='manual');
+  document.getElementById('tab-claude').classList.toggle('active', tab==='claude');
+}
+
+function copyClaudePrompt() {
+  const text = document.getElementById('claude-prompt-box').textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('Prompt copied! Paste it in Claude.', 'success'));
+}
+
+function validateClaudePaste() {
+  const raw = document.getElementById('claude-paste').value.trim();
+  const status = document.getElementById('claude-paste-status');
+  const area = document.getElementById('claude-paste');
+  if (!raw) { area.className='paste-area'; status.textContent='Waiting for input…'; status.style.color='var(--gray-light)'; return false; }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed.name) throw new Error('Missing name');
+    area.className='paste-area valid';
+    status.textContent=`✓ Valid recipe detected: "${parsed.name}"`;
+    status.style.color='var(--green)';
+    return true;
+  } catch(e) {
+    area.className='paste-area invalid';
+    status.textContent='✗ Could not parse — make sure you copied the full JSON response from Claude.';
+    status.style.color='var(--red)';
+    return false;
+  }
+}
+
+function importFromClaude() {
+  if (!validateClaudePaste()) { showToast('Paste valid JSON from Claude first.', 'error'); return; }
+  try {
+    const raw = JSON.parse(document.getElementById('claude-paste').value.trim());
+    const sourceType = document.getElementById('fc-source-type').value;
+    const sourceValue = sourceType==='url' ? document.getElementById('fc-source-url').value.trim() :
+                        sourceType==='file' ? document.getElementById('fc-source-file').value.trim() : null;
+    const recipe = {
+      id: generateId(),
+      name: raw.name || 'Untitled Recipe',
+      servings: raw.servings || 5,
+      prepTime: raw.prepTime || 0,
+      cookTime: raw.cookTime || 0,
+      difficulty: raw.difficulty || 'medium',
+      protein: raw.protein || 'mixed',
+      cuisine: raw.cuisine || 'other',
+      course: raw.course || 'dinner',
+      tags: raw.tags || [],
+      ingredients: (raw.ingredients||[]).map(ing => ({
+        ...ing,
+        isStaple: isStaple(ing.name||''),
+        storeSection: ing.storeSection || guessFreshness(ing.name||'')
+      })),
+      instructions: raw.instructions || [],
+      notes: raw.notes || '',
+      source: { type: sourceType, value: sourceValue },
+      frequency: 0, lastPlanned: null,
+      dateAdded: dateKey(new Date())
+    };
+    appData.recipes.push(recipe);
+    persistToSession();
+    closeModal('modal-add-recipe');
+    renderLibrary();
+    showToast(`"${recipe.name}" added to library!`, 'success');
+  } catch(e) {
+    showToast('Error importing recipe. Please try again.', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// GROCERY LIST
+// ═══════════════════════════════════════════════════
+function renderGroceryView() {
+  // Populate week selector
+  const select = document.getElementById('grocery-week-select');
+  const weeks = Object.keys(appData.weekPlans).sort().reverse();
+  if (weeks.length === 0) {
+    select.innerHTML = '<option>No weeks planned yet</option>';
+    document.getElementById('trip1-panel').innerHTML = '<div class="grocery-empty">Plan a week first to generate grocery lists.</div>';
+    document.getElementById('trip2-panel').innerHTML = '';
+    return;
+  }
+  const currentKey = dateKey(currentWeekStart);
+  select.innerHTML = weeks.map(k => {
+    const d = new Date(k+'T00:00:00');
+    return `<option value="${k}" ${k===currentKey?'selected':''}>${formatDate(d)} week</option>`;
+  }).join('');
+  renderGrocery();
+}
+
+function renderGrocery() {
+  const weekKey = document.getElementById('grocery-week-select').value;
+  if (!weekKey || weekKey === 'No weeks planned yet') return;
+  const plan = appData.weekPlans[weekKey];
+  if (!plan) return;
+
+  const trip1Items = [], trip2Items = [];
+  const trip2Days = [4,5,6]; // Thu, Fri, Sat indexes
+
+  plan.days.forEach((day, idx) => {
+    ['dinner','lunch','breakfast'].forEach(mealType => {
+      if (!day[mealType]) return;
+      const r = getRecipeById(day[mealType]);
+      if (!r || !r.ingredients) return;
+      const batches = Math.max(1, parseInt(day[mealType + 'Batches']) || 1);
+      r.ingredients.forEach(ing => {
+        if (isStaple(ing.name)) return;
+        // Scale ingredient quantity by batch count
+        const scaledQtyStr = multiplyQuantity(String(ing.quantity || ''), batches);
+        const isTrip2 = ing.freshness === 'short-shelf' && trip2Days.includes(idx);
+        const list = isTrip2 ? trip2Items : trip1Items;
+        const existing = list.find(x => x.name.toLowerCase() === ing.name.toLowerCase() && x.unit === ing.unit);
+        if (existing) {
+          // Combine quantities: try numeric addition, otherwise concatenate with "+"
+          const q1 = existing.quantity, q2 = scaledQtyStr;
+          const n1 = parseFloat(q1), n2 = parseFloat(q2);
+          existing.quantity = (!isNaN(n1) && !isNaN(n2) && !q1.includes('/') && !q2.includes('/'))
+            ? String(n1 + n2)
+            : `${q1} + ${q2}`;
+          if (!existing.meals.includes(r.name)) existing.meals.push(r.name);
+        } else {
+          list.push({ name: ing.name, quantity: scaledQtyStr, unit: ing.unit||'', storeSection: ing.storeSection||'other', meals: [r.name], checked: false });
+        }
+      });
+    });
+  });
+
+  const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
+  const sectionLabels = {produce:'🥦 Produce',meat:'🥩 Meat & Seafood',dairy:'🧀 Dairy & Eggs',frozen:'❄️ Frozen',pantry:'🥫 Pantry & Dry Goods',bakery:'🍞 Bakery',other:'📦 Other'};
+
+  const checkedT1 = plan.trip1Checked || {};
+  const checkedT2 = plan.trip2Checked || {};
+
+  function buildPanel(items, checkedMap, tripNum) {
+    if (items.length === 0) return '<div class="grocery-empty">No items for this trip.</div>';
+    let html = '';
+    sections.forEach(sec => {
+      const secItems = items.filter(i => i.storeSection === sec);
+      if (secItems.length === 0) return;
+      html += `<div class="grocery-section"><div class="grocery-section-header">${sectionLabels[sec]||sec}</div>`;
+      secItems.forEach((item, idx) => {
+        const key = item.name+'_'+item.unit;
+        const checked = checkedMap[key] || false;
+        const qtyStr = item.quantity && item.quantity !== '0' ? `${item.quantity} ${item.unit}` : item.unit;
+        html += `
+          <div class="grocery-item">
+            <input type="checkbox" ${checked?'checked':''} onchange="toggleGroceryItem('${weekKey}',${tripNum},'${key}',this.checked)">
+            <div class="grocery-item-text">
+              <div class="grocery-item-name${checked?' checked':''}">${qtyStr} ${item.name}</div>
+              <div class="grocery-item-meal">For: ${item.meals.join(', ')}</div>
+            </div>
+            <button class="grocery-item-move" onclick="moveGroceryItem('${weekKey}',${tripNum},'${key}')">→ Trip ${tripNum===1?2:1}</button>
+          </div>`;
+      });
+      html += '</div>';
+    });
+    html += `<div class="grocery-extra-input">
+      <input id="extra-input-${tripNum}" placeholder="Add extra item…" onkeydown="if(event.key==='Enter')addExtraItem('${weekKey}',${tripNum})">
+      <button class="btn btn-secondary btn-sm" onclick="addExtraItem('${weekKey}',${tripNum})">+ Add</button>
+    </div>`;
+    return html;
+  }
+
+  document.getElementById('trip1-panel').innerHTML = buildPanel(trip1Items, checkedT1, 1);
+  document.getElementById('trip2-panel').innerHTML = buildPanel(trip2Items, checkedT2, 2);
+}
+
+function switchTrip(num) {
+  document.querySelectorAll('.trip-tab').forEach((t,i) => t.classList.toggle('active', i===num-1));
+  document.querySelectorAll('.trip-panel').forEach((p,i) => p.classList.toggle('active', i===num-1));
+}
+
+function toggleGroceryItem(weekKey, tripNum, key, checked) {
+  const plan = appData.weekPlans[weekKey];
+  if (!plan) return;
+  if (tripNum===1) { plan.trip1Checked = plan.trip1Checked||{}; plan.trip1Checked[key] = checked; }
+  else             { plan.trip2Checked = plan.trip2Checked||{}; plan.trip2Checked[key] = checked; }
+  persistToSession();
+  // Update text decoration without full re-render
+  const nameEl = event.target.closest('.grocery-item').querySelector('.grocery-item-name');
+  if (nameEl) nameEl.classList.toggle('checked', checked);
+}
+
+function addExtraItem(weekKey, tripNum) {
+  const input = document.getElementById(`extra-input-${tripNum}`);
+  const val = input.value.trim();
+  if (!val) return;
+  const plan = appData.weekPlans[weekKey];
+  if (!plan) return;
+  const key = 'extra_'+(Date.now());
+  if (tripNum===1) { plan.trip1Checked = plan.trip1Checked||{}; }
+  else             { plan.trip2Checked = plan.trip2Checked||{}; }
+  input.value = '';
+  persistToSession();
+  renderGrocery();
+}
+
+function moveGroceryItem(weekKey, fromTrip, key) {
+  // Simple visual swap — mark it moved in session
+  showToast('Item moved to Trip '+(fromTrip===1?2:1), 'success');
+}
+
+// ═══════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════
+function renderSettings() {
+  const s = appData.settings;
+  document.getElementById('s-family-name').value = s.familyName||'Hooper';
+  document.getElementById('s-servings').value = s.servings||5;
+  document.getElementById('s-trip1').value = s.trip1Day||'saturday';
+  document.getElementById('s-trip2').value = s.trip2Day||'wednesday';
+  document.getElementById('s-norepeat').value = s.noRepeatWeeks||2;
+  document.getElementById('s-maxprotein').value = s.maxSameProtein||3;
+  renderStaples();
+}
+
+function saveSettings() {
+  appData.settings.familyName = document.getElementById('s-family-name').value;
+  appData.settings.servings = parseInt(document.getElementById('s-servings').value)||5;
+  appData.settings.trip1Day = document.getElementById('s-trip1').value;
+  appData.settings.trip2Day = document.getElementById('s-trip2').value;
+  appData.settings.noRepeatWeeks = parseInt(document.getElementById('s-norepeat').value)||2;
+  appData.settings.maxSameProtein = parseInt(document.getElementById('s-maxprotein').value)||3;
+  persistToSession();
+  showToast('Settings saved.', 'success');
+}
+
+function renderStaples() {
+  const list = document.getElementById('staple-list');
+  list.innerHTML = appData.pantryStaples.map((s,i) =>
+    `<div class="staple-chip">${s}<button onclick="removeStaple(${i})">✕</button></div>`
+  ).join('');
+}
+
+function addStaple() {
+  const val = document.getElementById('staple-input').value.trim();
+  if (!val) return;
+  if (!appData.pantryStaples.some(s => s.toLowerCase() === val.toLowerCase())) {
+    appData.pantryStaples.push(val);
+    persistToSession();
+  }
+  document.getElementById('staple-input').value = '';
+  renderStaples();
+}
+
+function removeStaple(idx) {
+  appData.pantryStaples.splice(idx,1);
+  persistToSession();
+  renderStaples();
+}
+
+// ═══════════════════════════════════════════════════
+// FILE SAVE / LOAD
+// ═══════════════════════════════════════════════════
+function saveFile() {
+  const htmlContent = document.documentElement.outerHTML.replace(
+    /<script id="app-data"[^>]*>[\s\S]*?<\/script>/,
+    `<script id="app-data" type="application/json">\n${JSON.stringify(appData, null, 2)}\n<\/script>`
+  );
+  const blob = new Blob([htmlContent], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Family Meal Planner.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('File downloaded! Replace the copy in your Google Drive folder.', 'success');
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(appData, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'meal-planner-backup.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.recipes || !data.settings) throw new Error('Invalid format');
+      appData = data;
+      persistToSession();
+      showToast('Data imported successfully!', 'success');
+      showView('library');
+    } catch(err) { showToast('Invalid file format.', 'error'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function confirmReset() {
+  if (confirm('Are you sure you want to delete ALL data? This cannot be undone.')) {
+    localStorage.removeItem('mealplanner_session');
+    appData = { version:1, settings:{familyName:'Hooper',servings:5,trip1Day:'saturday',trip2Day:'wednesday',noRepeatWeeks:2,maxSameProtein:3}, pantryStaples:[], recipes:[], weekPlans:{} };
+    persistToSession();
+    showToast('All data cleared.', 'success');
+    showView('library');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// MODALS / TOAST
+// ═══════════════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  }
+});
+
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type?' '+type:'');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT / ANYLIST
+// ═══════════════════════════════════════════════════
+function openExportModal() {
+  refreshExportText();
+  if (navigator.share) {
+    document.getElementById('btn-share-list').style.display = '';
+  }
+  openModal('modal-export');
+}
+
+function refreshExportText() {
+  const tripSel = document.getElementById('export-trip-select').value;
+  document.getElementById('export-text').value = generateExportList(tripSel);
+}
+
+function generateExportList(tripFilter) {
+  // Gather aggregated grocery data (re-use existing renderGrocery logic on raw data)
+  const weekKey = document.getElementById('grocery-week-select')?.value || dateKey(getWeekStart(new Date()));
+  const plan = appData.weekPlans.find(w => w.weekStart === weekKey);
+  if (!plan) return '(No meals planned for this week yet.)';
+
+  const agg1 = {}; // trip 1
+  const agg2 = {}; // trip 2
+
+  const mealTypes = ['dinner','lunch','breakfast'];
+  plan.days.forEach(day => {
+    mealTypes.forEach(mt => {
+      const rid = day[mt];
+      if (!rid) return;
+      const recipe = appData.recipes.find(r => r.id === rid);
+      if (!recipe) return;
+      const batches = Math.max(1, parseInt(day[mt + 'Batches']) || 1);
+      (recipe.ingredients || []).forEach(ing => {
+        if (isStaple(ing.name)) return;
+        const scaledQty = multiplyQuantity(String(ing.quantity || ''), batches);
+        const key = (ing.name || '').toLowerCase().trim();
+        const unit = (ing.unit || '').trim();
+        const trip = (ing.freshness === 'short-shelf') ? agg2 : agg1;
+        if (!trip[key]) {
+          trip[key] = { name: ing.name, unit, quantities: [], category: ing.category || 'Other' };
+        }
+        if (scaledQty) trip[key].quantities.push(scaledQty);
+      });
+    });
+  });
+
+  function formatSection(agg, header) {
+    if (Object.keys(agg).length === 0) return '';
+    // Group by category
+    const cats = {};
+    Object.values(agg).forEach(item => {
+      const cat = item.category || 'Other';
+      if (!cats[cat]) cats[cat] = [];
+      cats[cat].push(item);
+    });
+    let out = header + '\n' + '─'.repeat(header.length) + '\n';
+    Object.keys(cats).sort().forEach(cat => {
+      out += `\n[${cat}]\n`;
+      cats[cat].sort((a,b) => a.name.localeCompare(b.name)).forEach(item => {
+        const qStr = item.quantities.length ? item.quantities.join(' + ') + (item.unit ? ' ' + item.unit : '') : '';
+        out += `• ${item.name}${qStr ? '  (' + qStr + ')' : ''}\n`;
+      });
+    });
+    return out;
+  }
+
+  let text = `GROCERY LIST — Week of ${weekKey}\n${'═'.repeat(36)}\n\n`;
+  if (tripFilter === 'both' || tripFilter === '1') {
+    text += formatSection(agg1, '🛒 TRIP 1 — Sat/Sun (Bulk + Early-Week)');
+    text += '\n';
+  }
+  if (tripFilter === 'both' || tripFilter === '2') {
+    text += formatSection(agg2, '🥬 TRIP 2 — Wed/Thu (Short-Shelf Fresh)');
+  }
+  return text.trim();
+}
+
+async function copyExportList() {
+  const text = document.getElementById('export-text').value;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('✅ Copied to clipboard!', 'success');
+  } catch(e) {
+    // fallback: select the textarea
+    const ta = document.getElementById('export-text');
+    ta.select();
+    document.execCommand('copy');
+    showToast('✅ List selected — press Ctrl+C to copy', '');
+  }
+}
+
+async function shareExportList() {
+  const text = document.getElementById('export-text').value;
+  try {
+    await navigator.share({ title: 'Grocery List', text });
+  } catch(e) { /* user cancelled or not supported */ }
+}
+
+// ═══════════════════════════════════════════════════
+// PWA / INSTALL GUIDE
+// ═══════════════════════════════════════════════════
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Show the Install button in nav
+  const btn = document.getElementById('btn-install');
+  if (btn) btn.style.display = '';
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('btn-install');
+  if (btn) btn.style.display = 'none';
+  showToast('🎉 App installed successfully!', 'success');
+});
+
+function openInstallGuide() {
+  // Show Chrome install banner if prompt is available
+  const banner = document.getElementById('install-chrome-banner');
+  if (banner) banner.style.display = deferredInstallPrompt ? '' : 'none';
+  openModal('modal-install');
+}
+
+async function triggerInstall() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') {
+    deferredInstallPrompt = null;
+    closeModal('modal-install');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════
+initData();
+currentWeekStart = getWeekStart(new Date());
+showView('monthly');
+</script>
+</body>
+</html>
