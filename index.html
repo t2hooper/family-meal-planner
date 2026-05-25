@@ -40,6 +40,11 @@ a:hover{text-decoration:underline}
 .nav-right{display:flex;align-items:center;gap:8px;margin-left:auto}
 .btn-save{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700}
 .btn-save:hover{background:rgba(255,255,255,0.3)}
+.sync-status{font-size:12px;font-weight:700;padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.35);white-space:nowrap;transition:all .3s}
+.sync-idle{color:#fff;background:rgba(255,255,255,0.12)}
+.sync-saving{color:#FFF9C4;background:rgba(255,255,255,0.15);animation:pulse .8s infinite alternate}
+.sync-error{color:#FFCDD2;background:rgba(255,0,0,0.18)}
+@keyframes pulse{from{opacity:.7}to{opacity:1}}
 
 /* ── VIEWS ── */
 .view{display:none;padding:20px}
@@ -293,7 +298,8 @@ a:hover{text-decoration:underline}
   </div>
   <div class="nav-right">
     <button id="btn-install" class="btn btn-secondary btn-sm" onclick="openInstallGuide()" style="display:none">📱 Install</button>
-    <button class="btn-save" onclick="saveFile()">💾 Save &amp; Sync</button>
+    <span id="sync-status" class="sync-status sync-idle" title="Changes auto-save to Supabase">☁️ Synced</span>
+    <button class="btn-save" onclick="saveFile()" title="Download a local backup copy">⬇ Backup</button>
   </div>
 </nav>
 
@@ -456,7 +462,7 @@ a:hover{text-decoration:underline}
 
   <div class="card settings-section">
     <h3>Data Management</h3>
-    <p style="font-size:12px;color:var(--gray-mid);margin-bottom:12px">The app data is saved <em>inside</em> this HTML file. Click <strong>Save &amp; Sync</strong> (top-right) after any session to download the updated file. Replace the copy in your shared Google Drive folder so both adults stay in sync.</p>
+    <p style="font-size:12px;color:var(--gray-mid);margin-bottom:12px">All changes are <strong>automatically saved to Supabase</strong> in real time. The <strong>☁️ Synced</strong> indicator (top-right) confirms your last save. Use <strong>⬇ Backup</strong> to download a local JSON copy anytime.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="exportJSON()">📤 Export Data (JSON)</button>
       <button class="btn btn-secondary" onclick="document.getElementById('import-json-input').click()">📥 Import Data (JSON)</button>
@@ -799,6 +805,140 @@ CRITICAL PARSING RULES (DO NOT VIOLATE):
 <!-- ══ APP JAVASCRIPT ══════════════════════════════ -->
 <script>
 // ═══════════════════════════════════════════════════
+// SUPABASE CONFIG
+// ═══════════════════════════════════════════════════
+const SB_URL  = 'https://qrknremvfmknpdkkyxqv.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFya25yZW12Zm1rbnBka2t5eHF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NDAzNzYsImV4cCI6MjA5NTMxNjM3Nn0.SIJZZyIYXOWS9avN0yKZx3Jts_K764sw0LtM_d8kql4';
+const SB_HDR  = { 'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+async function sbGet(table, query) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${query||'?select=*'}`, { headers: SB_HDR });
+  if (!r.ok) throw new Error(`GET ${table} ${r.status}`);
+  return r.json();
+}
+async function sbUpsert(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST', headers: { ...SB_HDR, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) { const t = await r.text(); throw new Error(`UPSERT ${table} ${r.status}: ${t}`); }
+}
+async function sbDelete(table, query) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${query}`, { method: 'DELETE', headers: SB_HDR });
+  if (!r.ok) throw new Error(`DELETE ${table} ${r.status}`);
+}
+
+// ── DB ↔ APP mappers ─────────────────────────────
+function recipeToDb(r) {
+  return {
+    id: r.id, name: r.name, photo: r.photo||null,
+    servings: r.servings||5, prep_time: r.prepTime||0, cook_time: r.cookTime||0,
+    difficulty: r.difficulty||'easy', protein: r.protein||'other',
+    cuisine: r.cuisine||'other', course: r.course||'dinner',
+    tags: r.tags||[], ingredients: r.ingredients||[], instructions: r.instructions||[],
+    notes: r.notes||'', source_type: r.source?.type||'manual', source_value: r.source?.value||null,
+    frequency: r.frequency||0, last_planned: r.lastPlanned||null,
+    tier: r.tierOverride||null, day_preference: r.dayPreference||[],
+    date_added: r.dateAdded||dateKey(new Date())
+  };
+}
+function recipeFromDb(row) {
+  return {
+    id: row.id, name: row.name, photo: row.photo,
+    servings: row.servings, prepTime: row.prep_time, cookTime: row.cook_time,
+    difficulty: row.difficulty, protein: row.protein, cuisine: row.cuisine, course: row.course,
+    tags: row.tags||[], ingredients: row.ingredients||[], instructions: row.instructions||[],
+    notes: row.notes||'', source: { type: row.source_type||'manual', value: row.source_value },
+    frequency: row.frequency||0, lastPlanned: row.last_planned,
+    tierOverride: row.tier, dayPreference: row.day_preference||[],
+    dateAdded: row.date_added
+  };
+}
+function planToDb(plan) {
+  return {
+    week_start: plan.weekStart, days: plan.days,
+    finalized: plan.finalized||false,
+    trip1_checked: plan.trip1Checked||{}, trip2_checked: plan.trip2Checked||{}
+  };
+}
+function planFromDb(row) {
+  return {
+    weekStart: row.week_start, days: row.days,
+    finalized: row.finalized,
+    trip1Checked: row.trip1_checked||{}, trip2Checked: row.trip2_checked||{}
+  };
+}
+
+// ── Sync status indicator ────────────────────────
+function setSyncStatus(state) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (state === 'saving') { el.className='sync-status sync-saving'; el.textContent='↻ Saving…'; }
+  else if (state === 'saved') { el.className='sync-status sync-idle'; el.textContent='☁️ Synced'; }
+  else if (state === 'error') { el.className='sync-status sync-error'; el.textContent='⚠️ Offline'; }
+}
+
+// ── Targeted Supabase save helpers ───────────────
+async function sbSaveRecipe(recipe) {
+  setSyncStatus('saving');
+  try { await sbUpsert('recipes', recipeToDb(recipe)); setSyncStatus('saved'); }
+  catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbSaveRecipes(recipes) {
+  if (!recipes.length) return;
+  setSyncStatus('saving');
+  try { await sbUpsert('recipes', recipes.map(recipeToDb)); setSyncStatus('saved'); }
+  catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbDeleteRecipe(id) {
+  setSyncStatus('saving');
+  try { await sbDelete('recipes', `?id=eq.${encodeURIComponent(id)}`); setSyncStatus('saved'); }
+  catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbSaveWeekPlan(plan) {
+  setSyncStatus('saving');
+  try { await sbUpsert('week_plans', planToDb(plan)); setSyncStatus('saved'); }
+  catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbSaveSettings() {
+  setSyncStatus('saving');
+  try { await sbUpsert('settings', { key:'family', value: appData.settings }); setSyncStatus('saved'); }
+  catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbSaveStaples() {
+  setSyncStatus('saving');
+  try {
+    await sbDelete('pantry_staples', '?id=gt.0');
+    if (appData.pantryStaples.length) {
+      await sbUpsert('pantry_staples', appData.pantryStaples.map(name => ({ name })));
+    }
+    setSyncStatus('saved');
+  } catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbSaveAll() {
+  setSyncStatus('saving');
+  try {
+    await sbUpsert('settings', { key:'family', value: appData.settings });
+    await sbDelete('pantry_staples', '?id=gt.0');
+    if (appData.pantryStaples.length) await sbUpsert('pantry_staples', appData.pantryStaples.map(n => ({ name: n })));
+    if (appData.recipes.length)       await sbUpsert('recipes', appData.recipes.map(recipeToDb));
+    const plans = Object.values(appData.weekPlans);
+    if (plans.length)                 await sbUpsert('week_plans', plans.map(planToDb));
+    setSyncStatus('saved');
+  } catch(e) { console.error(e); setSyncStatus('error'); }
+}
+async function sbResetAll() {
+  setSyncStatus('saving');
+  try {
+    await sbDelete('recipes', '?id=neq.null');
+    await sbDelete('week_plans', '?week_start=neq.null');
+    await sbDelete('pantry_staples', '?id=gt.0');
+    await sbUpsert('settings', { key:'family', value: appData.settings });
+    setSyncStatus('saved');
+  } catch(e) { console.error(e); setSyncStatus('error'); }
+}
+
+// ═══════════════════════════════════════════════════
 // DATA LAYER
 // ═══════════════════════════════════════════════════
 let appData = {};
@@ -808,23 +948,40 @@ let currentPickMealType = null;
 let currentMonthDate = new Date();
 let currentWeekStart = getWeekStart(new Date());
 
-function initData() {
-  try {
-    const raw = document.getElementById('app-data').textContent;
-    appData = JSON.parse(raw);
-  } catch(e) {
-    appData = { version:1, settings:{familyName:'Hooper',servings:5,trip1Day:'saturday',trip2Day:'wednesday',noRepeatWeeks:2,maxSameProtein:3}, pantryStaples:[], recipes:[], weekPlans:{} };
-  }
-  // Also check localStorage for unsaved session data
+const DEFAULT_DATA = () => ({
+  version:1,
+  settings:{ familyName:'Hooper', servings:5, trip1Day:'saturday', trip2Day:'wednesday', noRepeatWeeks:2, maxSameProtein:3 },
+  pantryStaples:[], recipes:[], weekPlans:{}
+});
+
+async function initData() {
+  // 1. Load localStorage cache immediately so the UI isn't blank while we fetch
   const ls = localStorage.getItem('mealplanner_session');
-  if (ls) {
-    try {
-      const lsData = JSON.parse(ls);
-      if (lsData.version === appData.version) {
-        // Merge: localStorage has priority for recipes/weekPlans/settings
-        appData = lsData;
-      }
-    } catch(e) {}
+  try { appData = ls ? JSON.parse(ls) : DEFAULT_DATA(); }
+  catch(e) { appData = DEFAULT_DATA(); }
+  if (!appData.recipes) appData = DEFAULT_DATA();
+
+  // 2. Fetch authoritative data from Supabase
+  setSyncStatus('saving');
+  try {
+    const [settingsRows, staplesRows, recipesRows, plansRows] = await Promise.all([
+      sbGet('settings'),
+      sbGet('pantry_staples', '?select=name&order=name'),
+      sbGet('recipes', '?select=*&order=name'),
+      sbGet('week_plans')
+    ]);
+    const sf = settingsRows.find(r => r.key === 'family');
+    if (sf) appData.settings = sf.value;
+    appData.pantryStaples = staplesRows.map(r => r.name);
+    appData.recipes = recipesRows.map(recipeFromDb);
+    appData.weekPlans = {};
+    plansRows.forEach(row => { appData.weekPlans[row.week_start] = planFromDb(row); });
+    persistToSession();
+    setSyncStatus('saved');
+  } catch(e) {
+    console.error('Supabase load failed, running from cache:', e);
+    setSyncStatus('error');
+    showToast('⚠️ Running offline — using cached data', '');
   }
 }
 
@@ -1249,10 +1406,11 @@ function assignMeal(recipeId) {
     day[currentPickMealType + 'Batches'] = 1; // always reset to 1 on new assignment
     if (currentPickMealType === 'dinner') {
       const r = getRecipeById(recipeId);
-      if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); }
+      if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); sbSaveRecipe(r); }
     }
   }
   persistToSession();
+  sbSaveWeekPlan(plan);
   closeModal('modal-pick-meal');
   renderWeekly();
 }
@@ -1264,6 +1422,7 @@ function setBatches(dateStr, mealType, value) {
   const n = Math.max(1, parseInt(value) || 1);
   day[mealType + 'Batches'] = n;
   persistToSession();
+  sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
   renderWeekly();
 }
 
@@ -1276,6 +1435,7 @@ function clearMeal(dateStr, mealType) {
   const day = plan.days.find(d => d.date === dateStr);
   if (day) day[mealType] = null;
   persistToSession();
+  sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
   renderWeekly();
 }
 
@@ -1360,19 +1520,22 @@ function autoSuggestWeek() {
   }
 
   // Assign to days (only empty slots)
+  const updatedRecipes = [];
   let pickIdx = 0;
   plan.days.forEach(day => {
     if (!day.dinner) {
       day.dinner = picks[pickIdx] || null;
       if (day.dinner) {
         const r = getRecipeById(day.dinner);
-        if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); }
+        if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); updatedRecipes.push(r); }
       }
       pickIdx++;
     }
   });
 
   persistToSession();
+  sbSaveWeekPlan(plan);
+  sbSaveRecipes(updatedRecipes);
   renderWeekly();
   showToast('Week planned! Review and swap any meals you want.', 'success');
 }
@@ -1385,6 +1548,7 @@ function finalizeWeek() {
   }
   plan.finalized = true;
   persistToSession();
+  sbSaveWeekPlan(plan);
   showToast('Week finalized! Grocery lists are ready.', 'success');
   setTimeout(() => openGrocery(), 800);
 }
@@ -1590,10 +1754,14 @@ function openAddRecipe(editId) {
   // Reset form
   switchAddTab('manual');
   ['f-name','f-prep','f-cook','f-servings','f-tags','f-instructions','f-notes',
-   'f-source-url','f-source-file'].forEach(id => {
+   'f-source-url','f-source-file','claude-paste'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const pasteStatus = document.getElementById('claude-paste-status');
+  if (pasteStatus) { pasteStatus.textContent = 'Waiting for input…'; pasteStatus.style.color = 'var(--gray-light)'; }
+  const pasteArea = document.getElementById('claude-paste');
+  if (pasteArea) pasteArea.className = 'paste-area';
   document.getElementById('f-servings').value = appData.settings.servings || 5;
   document.getElementById('f-difficulty').value = 'easy';
   document.getElementById('f-protein').value = 'chicken';
@@ -1707,6 +1875,7 @@ function saveRecipe() {
   const instructions = document.getElementById('f-instructions').value.split('\n').map(s => s.trim()).filter(Boolean);
 
   const editId = document.getElementById('edit-recipe-id').value;
+  let savedRecipe;
   if (editId) {
     const idx = appData.recipes.findIndex(r => r.id === editId);
     if (idx >= 0) {
@@ -1722,6 +1891,7 @@ function saveRecipe() {
         notes: document.getElementById('f-notes').value.trim(),
         source: { type: sourceType, value: sourceValue }
       };
+      savedRecipe = appData.recipes[idx];
     }
   } else {
     const recipe = {
@@ -1740,9 +1910,11 @@ function saveRecipe() {
       dateAdded: dateKey(new Date())
     };
     appData.recipes.push(recipe);
+    savedRecipe = recipe;
   }
 
   persistToSession();
+  if (savedRecipe) sbSaveRecipe(savedRecipe);
   closeModal('modal-add-recipe');
   renderLibrary();
   showToast(editId ? 'Recipe updated!' : 'Recipe added to library!', 'success');
@@ -1826,6 +1998,7 @@ function importFromClaude() {
     };
     appData.recipes.push(recipe);
     persistToSession();
+    sbSaveRecipe(recipe);
     closeModal('modal-add-recipe');
     renderLibrary();
     showToast(`"${recipe.name}" added to library!`, 'success');
@@ -1943,6 +2116,7 @@ function toggleGroceryItem(weekKey, tripNum, key, checked) {
   if (tripNum===1) { plan.trip1Checked = plan.trip1Checked||{}; plan.trip1Checked[key] = checked; }
   else             { plan.trip2Checked = plan.trip2Checked||{}; plan.trip2Checked[key] = checked; }
   persistToSession();
+  sbSaveWeekPlan(plan);
   // Update text decoration without full re-render
   const nameEl = event.target.closest('.grocery-item').querySelector('.grocery-item-name');
   if (nameEl) nameEl.classList.toggle('checked', checked);
@@ -1959,6 +2133,7 @@ function addExtraItem(weekKey, tripNum) {
   else             { plan.trip2Checked = plan.trip2Checked||{}; }
   input.value = '';
   persistToSession();
+  sbSaveWeekPlan(plan);
   renderGrocery();
 }
 
@@ -1989,6 +2164,7 @@ function saveSettings() {
   appData.settings.noRepeatWeeks = parseInt(document.getElementById('s-norepeat').value)||2;
   appData.settings.maxSameProtein = parseInt(document.getElementById('s-maxprotein').value)||3;
   persistToSession();
+  sbSaveSettings();
   showToast('Settings saved.', 'success');
 }
 
@@ -2005,6 +2181,7 @@ function addStaple() {
   if (!appData.pantryStaples.some(s => s.toLowerCase() === val.toLowerCase())) {
     appData.pantryStaples.push(val);
     persistToSession();
+    sbSaveStaples();
   }
   document.getElementById('staple-input').value = '';
   renderStaples();
@@ -2013,6 +2190,7 @@ function addStaple() {
 function removeStaple(idx) {
   appData.pantryStaples.splice(idx,1);
   persistToSession();
+  sbSaveStaples();
   renderStaples();
 }
 
@@ -2020,17 +2198,9 @@ function removeStaple(idx) {
 // FILE SAVE / LOAD
 // ═══════════════════════════════════════════════════
 function saveFile() {
-  const htmlContent = document.documentElement.outerHTML.replace(
-    /<script id="app-data"[^>]*>[\s\S]*?<\/script>/,
-    `<script id="app-data" type="application/json">\n${JSON.stringify(appData, null, 2)}\n<\/script>`
-  );
-  const blob = new Blob([htmlContent], {type:'text/html'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'Family Meal Planner.html';
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('File downloaded! Replace the copy in your Google Drive folder.', 'success');
+  // Downloads a JSON backup of all current data
+  exportJSON();
+  showToast('Backup downloaded! Your data is auto-saved to Supabase.', 'success');
 }
 
 function exportJSON() {
@@ -2050,6 +2220,7 @@ function importJSON(event) {
       if (!data.recipes || !data.settings) throw new Error('Invalid format');
       appData = data;
       persistToSession();
+      sbSaveAll();
       showToast('Data imported successfully!', 'success');
       showView('library');
     } catch(err) { showToast('Invalid file format.', 'error'); }
@@ -2061,8 +2232,9 @@ function importJSON(event) {
 function confirmReset() {
   if (confirm('Are you sure you want to delete ALL data? This cannot be undone.')) {
     localStorage.removeItem('mealplanner_session');
-    appData = { version:1, settings:{familyName:'Hooper',servings:5,trip1Day:'saturday',trip2Day:'wednesday',noRepeatWeeks:2,maxSameProtein:3}, pantryStaples:[], recipes:[], weekPlans:{} };
+    appData = DEFAULT_DATA();
     persistToSession();
+    sbResetAll();
     showToast('All data cleared.', 'success');
     showView('library');
   }
@@ -2241,9 +2413,16 @@ async function triggerInstall() {
 // ═══════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════
-initData();
+// initData() runs its localStorage section synchronously before the first await,
+// so appData is populated from cache before showView() is called below.
+const _initPromise = initData();
 currentWeekStart = getWeekStart(new Date());
-showView('monthly');
+showView('monthly');  // renders from localStorage cache immediately
+_initPromise.then(() => {
+  // Re-render once Supabase data has arrived
+  const active = document.querySelector('.view.active');
+  if (active) showView(active.id.replace('view-',''));
+});
 </script>
 </body>
 </html>
