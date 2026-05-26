@@ -285,6 +285,15 @@ a:hover{text-decoration:underline}
 .source-type-btn{flex:1;padding:6px;border:2px solid var(--border);border-radius:5px;background:#fff;font-size:12px;font-weight:600;color:var(--gray-mid);cursor:pointer;text-align:center;transition:all .15s}
 .source-type-btn.active{border-color:var(--green);background:var(--green-bg);color:var(--green)}
 
+/* ── FIND RECIPES BAR ── */
+.find-recipes-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 0 4px;border-top:1px solid var(--border);margin-top:16px}
+.find-recipe-link{font-size:12px;font-weight:600;color:var(--teal);background:var(--green-bg);border:1px solid var(--green-border);border-radius:16px;padding:4px 12px;text-decoration:none;transition:all .15s;white-space:nowrap}
+.find-recipe-link:hover{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* ── NIGHT PREP WARNING ── */
+.prep-warn{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#B71C1C;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle}
+.none-meal-slot{background:var(--gray-bg);border:1px dashed var(--border);border-radius:6px;padding:8px 10px;text-align:center;font-size:11px;color:var(--gray-light);font-style:italic}
+
 /* ── PRINT STYLES ── */
 @media print {
   #app-nav,.nav-tabs,.btn,.modal-footer,.filter-bar,#view-monthly,#view-weekly,#view-library,#view-grocery,#view-settings,.week-actions,.modal-overlay:not(.printing){display:none!important}
@@ -422,6 +431,15 @@ a:hover{text-decoration:underline}
     <button class="btn btn-secondary btn-sm" onclick="clearFilters()">Clear</button>
   </div>
   <div id="recipe-grid" class="recipe-grid"></div>
+  <div class="find-recipes-bar">
+    <span style="font-size:12px;font-weight:600;color:var(--gray-mid);white-space:nowrap">🔍 Find recipes:</span>
+    <a href="https://www.allrecipes.com" target="_blank" class="find-recipe-link">AllRecipes</a>
+    <a href="https://www.foodnetwork.com/recipes" target="_blank" class="find-recipe-link">Food Network</a>
+    <a href="https://www.budgetbytes.com" target="_blank" class="find-recipe-link">Budget Bytes</a>
+    <a href="https://www.seriouseats.com" target="_blank" class="find-recipe-link">Serious Eats</a>
+    <a href="https://www.halfbakedharvest.com" target="_blank" class="find-recipe-link">Half Baked Harvest</a>
+    <a href="https://tasty.co/recipes" target="_blank" class="find-recipe-link">Tasty</a>
+  </div>
 </div>
 
 <!-- ══ GROCERY VIEW ════════════════════════════════ -->
@@ -479,6 +497,14 @@ a:hover{text-decoration:underline}
   </div>
 
   <div class="card settings-section">
+    <h3>Weekly Schedule</h3>
+    <p style="font-size:12px;color:var(--gray-mid);margin-bottom:14px">Set each night's cooking expectations. Auto-suggest uses these to pick appropriate recipes, and the weekly planner will warn you when a long-prep meal lands on a quick night.</p>
+    <div id="night-schedule-grid" style="display:grid;grid-template-columns:110px 1fr;gap:7px 12px;align-items:center">
+      <!-- populated by renderSettings() -->
+    </div>
+  </div>
+
+  <div class="card settings-section">
     <h3>Pantry Staples <span style="font-size:11px;font-weight:400;color:var(--gray-light)">— items never added to shopping list</span></h3>
     <div id="staple-list" class="staple-list"></div>
     <div class="staple-add">
@@ -524,6 +550,7 @@ a:hover{text-decoration:underline}
     <div class="modal-body">
       <div class="add-recipe-tabs">
         <button class="add-recipe-tab active" onclick="switchAddTab('scan')">📷 Scan Photo</button>
+        <button class="add-recipe-tab" onclick="switchAddTab('url')">🔗 URL Import</button>
         <button class="add-recipe-tab" onclick="switchAddTab('manual')">✏️ Manual Entry</button>
         <button class="add-recipe-tab" onclick="switchAddTab('claude')">🤖 Add via Claude</button>
       </div>
@@ -635,6 +662,29 @@ a:hover{text-decoration:underline}
               <p>Claude will read the recipe and extract all fields automatically. You'll get a side-by-side view to confirm or edit before saving.</p>
               <button id="scan-btn" class="btn btn-primary" onclick="runScan()" disabled>🔍 Scan Recipe</button>
               <div id="scan-status" style="font-size:12px;margin-top:8px;color:var(--gray-mid)">Choose a photo to get started.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- URL IMPORT -->
+      <div id="tab-url" class="add-recipe-panel">
+        <div class="claude-flow">
+          <div class="claude-step">
+            <div class="claude-step-num">1</div>
+            <div class="claude-step-content">
+              <h4>Paste a recipe URL</h4>
+              <p>Works with most recipe sites: AllRecipes, Food Network, Budget Bytes, Serious Eats, Half Baked Harvest, Tasty, and more. Sites that require a login (e.g. NYT Cooking) won't work.</p>
+              <input type="url" id="url-import-input" class="form-input" placeholder="https://www.allrecipes.com/recipe/..." style="width:100%;margin-top:4px;border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px">
+            </div>
+          </div>
+          <div class="claude-step">
+            <div class="claude-step-num">2</div>
+            <div class="claude-step-content">
+              <h4>Import &amp; review</h4>
+              <p>Claude reads the page and pulls out the recipe. You'll see all the fields before anything is saved — edit anything that looks off.</p>
+              <button id="url-import-btn" class="btn btn-primary" onclick="runUrlImport()">🔗 Import Recipe</button>
+              <div id="url-import-status" style="font-size:12px;margin-top:8px;color:var(--gray-mid)"></div>
             </div>
           </div>
         </div>
@@ -1029,6 +1079,7 @@ let appData = {};
 let currentEditingRecipeId = null;
 let currentPickDay = null;
 let currentPickMealType = null;
+let currentReplaceId = null;
 let currentMonthDate = new Date();
 let currentWeekStart = getWeekStart(new Date());
 
@@ -1164,17 +1215,30 @@ function ensureWeekPlan(weekStartDate) {
   if (!appData.weekPlans[key]) {
     const days = [];
     for (let i=0; i<7; i++) {
-      days.push({ date: dateKey(addDays(weekStartDate, i)), dinner: null, dinnerBatches: 1, lunch: null, lunchBatches: 1, breakfast: null, breakfastBatches: 1 });
+      days.push({ date: dateKey(addDays(weekStartDate, i)), dinners: [], lunches: [], breakfasts: [], dinner: null, dinnerBatches: 1, lunch: null, lunchBatches: 1, breakfast: null, breakfastBatches: 1 });
     }
     appData.weekPlans[key] = { weekStart: key, days, finalized: false, trip1Checked: {}, trip2Checked: {} };
   }
   return appData.weekPlans[key];
 }
 
+// Returns array of {id, batches} — handles both new array format and legacy single-id format
+function getMeals(day, mealType) {
+  const key = mealType + 's'; // dinners, lunches, breakfasts
+  if (day[key] && day[key].length > 0) return day[key];
+  if (day[mealType]) return [{ id: day[mealType], batches: day[mealType + 'Batches'] || 1 }];
+  return [];
+}
+
 function isWeekComplete(weekStartDate) {
   const plan = getWeekPlan(weekStartDate);
   if (!plan) return false;
-  return plan.days.every(d => d.dinner !== null);
+  const np = appData.settings.nightPrep || {};
+  return plan.days.every(d => {
+    const dow = new Date(d.date + 'T00:00:00').getDay();
+    if ((np[dow] || 'full') === 'none') return true; // no meal needed
+    return getMeals(d, 'dinner').length > 0;
+  });
 }
 
 function getRecipeTier(recipe) {
@@ -1246,12 +1310,12 @@ function renderMonthly() {
     const weekStart = getWeekStart(date);
     const plan = getWeekPlan(weekStart);
     const dayPlan = plan ? plan.days.find(x => x.date === dateKey(date)) : null;
-    const dinner = dayPlan && dayPlan.dinner ? getRecipeById(dayPlan.dinner) : null;
+    const dayDinners = dayPlan ? getMeals(dayPlan, 'dinner') : [];
+    const dinner = dayDinners.length > 0 ? getRecipeById(dayDinners[0].id) : null;
 
     if (dinner) {
       classes.push('has-plan');
     } else {
-      // Check if this week has any days with missing dinners (past dates excluded)
       if (date >= today) classes.push('needs-plan');
     }
 
@@ -1260,9 +1324,12 @@ function renderMonthly() {
 
     let html = `<div class="cal-date">${d}</div>`;
     if (dinner) html += `<div class="cal-meal-pill" title="${dinner.name}">${dinner.name}</div>`;
-    if (dayPlan && dayPlan.lunch) {
-      const l = getRecipeById(dayPlan.lunch);
-      if (l) html += `<div class="cal-meal-pill" style="background:var(--blue-bg);color:var(--blue)" title="${l.name}">${l.name}</div>`;
+    if (dayPlan) {
+      const dayLunches = getMeals(dayPlan, 'lunch');
+      if (dayLunches.length > 0) {
+        const l = getRecipeById(dayLunches[0].id);
+        if (l) html += `<div class="cal-meal-pill" style="background:var(--blue-bg);color:var(--blue)" title="${l.name}">${l.name}</div>`;
+      }
     }
 
     // Show "Plan" button on Saturdays for next week
@@ -1320,10 +1387,15 @@ function renderWeekly() {
     `${formatDate(ws)} – ${formatDate(we)}, ${we.getFullYear()}`;
 
   const plan = ensureWeekPlan(ws);
-  const complete = plan.days.every(d => d.dinner !== null);
+  const nightPrep = appData.settings.nightPrep || {};
+  const needsDinner = d => {
+    const dow = new Date(d.date + 'T00:00:00').getDay();
+    return (nightPrep[dow] || 'full') !== 'none';
+  };
+  const complete = plan.days.filter(needsDinner).every(d => getMeals(d, 'dinner').length > 0);
   const banner = document.getElementById('week-banner');
   if (!complete) {
-    const missing = plan.days.filter(d => !d.dinner).length;
+    const missing = plan.days.filter(d => needsDinner(d) && getMeals(d, 'dinner').length === 0).length;
     banner.innerHTML = `<div class="week-incomplete-banner">⚠️ <strong>${missing} dinner${missing>1?'s':''} still need planning</strong> — click any empty slot or use Auto-Suggest to fill the week.</div>`;
   } else {
     banner.innerHTML = '';
@@ -1339,37 +1411,63 @@ function renderWeekly() {
     const col = document.createElement('div');
     col.className = 'day-card';
 
-    const dinner = day.dinner ? getRecipeById(day.dinner) : null;
-    const dinnerBatches = day.dinnerBatches || 1;
-    const sharedIngredients = dinner ? getSharedIngredients(dinner, ingredientMap, day.dinner) : [];
+    const dinners = getMeals(day, 'dinner');
+    const dk = dateKey(date);
+    const dayOfWeek = new Date(day.date + 'T00:00:00').getDay();
+    const nightType = (appData.settings.nightPrep || {})[dayOfWeek] || 'full';
+    const QUICK_THRESHOLD = 30;
 
-    let dinnerHTML;
-    if (dinner) {
-      const total = (dinner.prepTime||0) + (dinner.cookTime||0);
-      const diffColor = {easy:'var(--green)',medium:'#F57C00',hard:'var(--red)'}[dinner.difficulty||'easy'];
-      const batchLabel = dinnerBatches > 1
-        ? `<span style="background:var(--orange-bg);color:var(--orange);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px">×${dinnerBatches} batches</span>`
-        : '';
-      dinnerHTML = `
-        <div class="dinner-card" onclick="openRecipe('${dinner.id}',${dinnerBatches})">
-          <div class="meal-name">${dinner.name}${batchLabel}${sharedIngredients.length ? `<span class="share-badge" title="Shares: ${sharedIngredients.join(', ')}">🔗 shared</span>` : ''}</div>
-          <div class="meal-meta">${total ? total+'min' : ''} · <span style="color:${diffColor}">${dinner.difficulty||'easy'}</span> · ${capitalise(dinner.cuisine||'')}</div>
-          <div class="meal-actions" style="align-items:center">
-            <label style="font-size:10px;color:var(--gray-mid);font-weight:700;margin-right:2px">Batches:</label>
-            <input type="number" min="1" max="10" value="${dinnerBatches}"
-              style="width:42px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;font-size:11px;text-align:center"
-              onclick="event.stopPropagation()"
-              onchange="event.stopPropagation();setBatches('${dateKey(date)}','dinner',this.value)">
-            <button class="meal-action-btn" style="margin-left:auto" onclick="event.stopPropagation();swapMeal('${dateKey(date)}','dinner')">↔ Swap</button>
-            <button class="meal-action-btn" onclick="event.stopPropagation();clearMeal('${dateKey(date)}','dinner')" style="color:var(--red)">✕</button>
-          </div>
-        </div>`;
+    let dinnerHTML = '';
+    if (nightType === 'none' && dinners.length === 0) {
+      dinnerHTML = `<div class="none-meal-slot">🍕 Eat out / leftovers<br><span onclick="pickMeal('${dk}','dinner')" style="cursor:pointer;text-decoration:underline;font-size:10px">add a meal anyway</span></div>`;
+    } else if (dinners.length === 0) {
+      dinnerHTML = `<div class="dinner-card empty" onclick="pickMeal('${dk}','dinner')">+ Add Dinner</div>`;
     } else {
-      dinnerHTML = `<div class="dinner-card empty" onclick="pickMeal('${dateKey(date)}','dinner')">+ Add Dinner</div>`;
+      dinners.forEach(({id, batches}) => {
+        const r = getRecipeById(id);
+        if (!r) return;
+        const total = (r.prepTime||0) + (r.cookTime||0);
+        const diffColor = {easy:'var(--green)',medium:'#F57C00',hard:'var(--red)'}[r.difficulty||'easy'];
+        const sharedIngredients = getSharedIngredients(r, ingredientMap, id);
+        const batchLabel = batches > 1
+          ? `<span style="background:var(--orange-bg);color:var(--orange);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px">×${batches} batches</span>`
+          : '';
+        const prepWarn = (nightType === 'quick' && total > QUICK_THRESHOLD)
+          ? `<span class="prep-warn" title="This recipe takes ${total} min — your setting for this night is Quick (under ${QUICK_THRESHOLD} min)">⚠ Long prep</span>`
+          : '';
+        dinnerHTML += `
+          <div class="dinner-card" onclick="openRecipe('${id}',${batches})">
+            <div class="meal-name">${r.name}${batchLabel}${sharedIngredients.length ? `<span class="share-badge" title="Shares: ${sharedIngredients.join(', ')}">🔗 shared</span>` : ''}${prepWarn}</div>
+            <div class="meal-meta">${total ? total+'min' : ''} · <span style="color:${diffColor}">${r.difficulty||'easy'}</span> · ${capitalise(r.cuisine||'')}</div>
+            <div class="meal-actions" style="align-items:center">
+              <label style="font-size:10px;color:var(--gray-mid);font-weight:700;margin-right:2px">Batches:</label>
+              <input type="number" min="1" max="10" value="${batches}"
+                style="width:42px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;font-size:11px;text-align:center"
+                onclick="event.stopPropagation()"
+                onchange="event.stopPropagation();setBatches('${dk}','dinner','${id}',this.value)">
+              <button class="meal-action-btn" style="margin-left:auto" onclick="event.stopPropagation();pickMeal('${dk}','dinner','${id}')">↔ Swap</button>
+              <button class="meal-action-btn" onclick="event.stopPropagation();clearMealItem('${dk}','dinner','${id}')" style="color:var(--red)">✕</button>
+            </div>
+          </div>`;
+      });
+      dinnerHTML += `<div class="dinner-card empty" style="margin-top:4px;font-size:12px;padding:6px 10px" onclick="pickMeal('${dk}','dinner')">+ Add Another</div>`;
     }
 
-    const lunch = day.lunch ? getRecipeById(day.lunch) : null;
-    const breakfast = day.breakfast ? getRecipeById(day.breakfast) : null;
+    const lunches = getMeals(day, 'lunch');
+    const breakfasts = getMeals(day, 'breakfast');
+    const hasOptional = lunches.length > 0 || breakfasts.length > 0;
+
+    let breakfastHTML = breakfasts.map(({id}) => {
+      const r = getRecipeById(id); if (!r) return '';
+      return `<div class="optional-meal-slot filled" style="margin-bottom:2px;display:flex;align-items:center"><span onclick="openRecipe('${id}',1)" style="cursor:pointer;flex:1">${r.name}</span><button style="background:none;border:none;color:inherit;cursor:pointer;font-size:10px;margin-left:4px" onclick="event.stopPropagation();clearMealItem('${dk}','breakfast','${id}')">✕</button></div>`;
+    }).join('');
+    breakfastHTML += `<div class="optional-meal-slot" style="${breakfasts.length?'font-size:11px;padding:3px 8px;margin-top:2px':''}" onclick="pickMeal('${dk}','breakfast')">+ Add</div>`;
+
+    let lunchHTML = lunches.map(({id}) => {
+      const r = getRecipeById(id); if (!r) return '';
+      return `<div class="optional-meal-slot filled" style="margin-bottom:2px;display:flex;align-items:center"><span onclick="openRecipe('${id}',1)" style="cursor:pointer;flex:1">${r.name}</span><button style="background:none;border:none;color:inherit;cursor:pointer;font-size:10px;margin-left:4px" onclick="event.stopPropagation();clearMealItem('${dk}','lunch','${id}')">✕</button></div>`;
+    }).join('');
+    lunchHTML += `<div class="optional-meal-slot" style="${lunches.length?'font-size:11px;padding:3px 8px;margin-top:2px':''}" onclick="pickMeal('${dk}','lunch')">+ Add</div>`;
 
     col.innerHTML = `
       <div class="day-card-header">
@@ -1382,19 +1480,15 @@ function renderWeekly() {
           ${dinnerHTML}
         </div>
         <div class="optional-meals">
-          <button class="optional-toggle" onclick="toggleOptional(this)">+ Breakfast &amp; Lunch ${(lunch||breakfast)?'▴':'▾'}</button>
-          <div class="optional-content ${(lunch||breakfast)?'open':''}">
+          <button class="optional-toggle" onclick="toggleOptional(this)">+ Breakfast &amp; Lunch ${hasOptional?'▴':'▾'}</button>
+          <div class="optional-content ${hasOptional?'open':''}">
             <div class="meal-slot" style="margin-bottom:6px">
               <div class="meal-slot-label">Breakfast</div>
-              <div class="${breakfast?'optional-meal-slot filled':'optional-meal-slot'}" onclick="pickMeal('${dateKey(date)}','breakfast')">
-                ${breakfast ? breakfast.name+'<button style="float:right;background:none;border:none;color:inherit;cursor:pointer;font-size:10px" onclick="event.stopPropagation();clearMeal(\''+dateKey(date)+'\',\'breakfast\')">✕</button>' : '+ Add'}
-              </div>
+              ${breakfastHTML}
             </div>
             <div class="meal-slot">
               <div class="meal-slot-label">Lunch</div>
-              <div class="${lunch?'optional-meal-slot filled':'optional-meal-slot'}" onclick="pickMeal('${dateKey(date)}','lunch')">
-                ${lunch ? lunch.name+'<button style="float:right;background:none;border:none;color:inherit;cursor:pointer;font-size:10px" onclick="event.stopPropagation();clearMeal(\''+dateKey(date)+'\',\'lunch\')">✕</button>' : '+ Add'}
-              </div>
+              ${lunchHTML}
             </div>
           </div>
         </div>
@@ -1422,18 +1516,18 @@ function goToCurrentWeek() {
 function buildIngredientMap(plan) {
   const map = {}; // ingredientName -> [recipeId, ...]
   plan.days.forEach(day => {
-    if (day.dinner) {
-      const r = getRecipeById(day.dinner);
+    getMeals(day, 'dinner').forEach(({id}) => {
+      const r = getRecipeById(id);
       if (r && r.ingredients) {
         r.ingredients.forEach(ing => {
           const n = ing.name.toLowerCase();
           if (!isStaple(n)) {
             if (!map[n]) map[n] = [];
-            if (!map[n].includes(day.dinner)) map[n].push(day.dinner);
+            if (!map[n].includes(id)) map[n].push(id);
           }
         });
       }
-    }
+    });
   });
   return map;
 }
@@ -1448,11 +1542,13 @@ function getSharedIngredients(recipe, map, recipeId) {
   return [...new Set(shared)];
 }
 
-function pickMeal(dateStr, mealType) {
+function pickMeal(dateStr, mealType, replaceId) {
   currentPickDay = dateStr;
   currentPickMealType = mealType;
+  currentReplaceId = replaceId || null;
+  const action = replaceId ? 'Swap' : 'Add';
   document.getElementById('pick-meal-title').textContent =
-    `Choose ${capitalise(mealType)} for ${formatDate(new Date(dateStr+'T00:00:00'))}`;
+    `${action} ${capitalise(mealType)} — ${formatDate(new Date(dateStr+'T00:00:00'))}`;
   document.getElementById('pick-search').value = '';
   renderPickList();
   openModal('modal-pick-meal');
@@ -1461,8 +1557,6 @@ function pickMeal(dateStr, mealType) {
 function renderPickList() {
   const search = document.getElementById('pick-search').value.toLowerCase();
   let recipes = appData.recipes.filter(r => {
-    if (currentPickMealType === 'dinner' && r.course && r.course !== 'dinner') return false;
-    if (currentPickMealType === 'lunch' && r.course && r.course === 'dinner') return false;
     if (search && !r.name.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -1486,38 +1580,69 @@ function assignMeal(recipeId) {
   const plan = ensureWeekPlan(currentWeekStart);
   const day = plan.days.find(d => d.date === currentPickDay);
   if (day) {
-    day[currentPickMealType] = recipeId;
-    day[currentPickMealType + 'Batches'] = 1; // always reset to 1 on new assignment
+    const key = currentPickMealType + 's';
+    // Migrate legacy single-id to array if needed
+    if (!day[key]) day[key] = getMeals(day, currentPickMealType);
+    if (currentReplaceId) {
+      // Swap: replace specific recipe in the array
+      const idx = day[key].findIndex(m => m.id === currentReplaceId);
+      if (idx >= 0) day[key][idx] = { id: recipeId, batches: 1 };
+      else day[key].push({ id: recipeId, batches: 1 });
+    } else {
+      // Add: append to array
+      day[key].push({ id: recipeId, batches: 1 });
+    }
+    // Clear legacy fields now that array is authoritative
+    day[currentPickMealType] = null;
+    day[currentPickMealType + 'Batches'] = 1;
     if (currentPickMealType === 'dinner') {
       const r = getRecipeById(recipeId);
       if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); sbSaveRecipe(r); }
     }
   }
+  currentReplaceId = null;
   persistToSession();
   sbSaveWeekPlan(plan);
   closeModal('modal-pick-meal');
   renderWeekly();
 }
 
-function setBatches(dateStr, mealType, value) {
+function setBatches(dateStr, mealType, recipeId, value) {
   const plan = ensureWeekPlan(currentWeekStart);
   const day = plan.days.find(d => d.date === dateStr);
   if (!day) return;
   const n = Math.max(1, parseInt(value) || 1);
-  day[mealType + 'Batches'] = n;
+  const key = mealType + 's';
+  if (!day[key]) day[key] = getMeals(day, mealType);
+  const item = day[key].find(m => m.id === recipeId);
+  if (item) item.batches = n;
   persistToSession();
   sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
   renderWeekly();
 }
 
-function swapMeal(dateStr, mealType) {
-  pickMeal(dateStr, mealType);
+function clearMealItem(dateStr, mealType, recipeId) {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === dateStr);
+  if (day) {
+    const key = mealType + 's';
+    if (!day[key]) day[key] = getMeals(day, mealType);
+    day[key] = day[key].filter(m => m.id !== recipeId);
+    if (day[mealType] === recipeId) { day[mealType] = null; day[mealType + 'Batches'] = 1; }
+  }
+  persistToSession();
+  sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
+  renderWeekly();
 }
 
 function clearMeal(dateStr, mealType) {
   const plan = ensureWeekPlan(currentWeekStart);
   const day = plan.days.find(d => d.date === dateStr);
-  if (day) day[mealType] = null;
+  if (day) {
+    day[mealType + 's'] = [];
+    day[mealType] = null;
+    day[mealType + 'Batches'] = 1;
+  }
   persistToSession();
   sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
   renderWeekly();
@@ -1537,11 +1662,11 @@ function autoSuggestWeek() {
   for (let w=1; w<=noRepeat; w++) {
     const ws = addDays(currentWeekStart, -7*w);
     const p = getWeekPlan(ws);
-    if (p) p.days.forEach(d => { if (d.dinner) recentIds.add(d.dinner); });
+    if (p) p.days.forEach(d => { getMeals(d, 'dinner').forEach(({id}) => recentIds.add(id)); });
   }
 
   // Get already-pinned dinners
-  const alreadyPinned = plan.days.filter(d => d.dinner).map(d => d.dinner);
+  const alreadyPinned = plan.days.flatMap(d => getMeals(d, 'dinner').map(m => m.id));
   const usedThisWeek = new Set(alreadyPinned);
 
   // Separate tier A, B, C dinner recipes
@@ -1603,18 +1728,40 @@ function autoSuggestWeek() {
     }
   }
 
-  // Assign to days (only empty slots)
+  // Quick-recipe fallback pool (under 30 min total)
+  const QUICK_THRESHOLD = 30;
+  const quickPool = [...poolA,...poolB,...poolC,...fallbackA,...fallbackB,...sortByOldest(tierC.filter(r => recentIds.has(r.id)))]
+    .filter(r => (r.prepTime||0)+(r.cookTime||0) <= QUICK_THRESHOLD);
+
+  // Assign to days (only empty slots, respecting night types)
   const updatedRecipes = [];
+  const nightPrep = appData.settings.nightPrep || {};
   let pickIdx = 0;
   plan.days.forEach(day => {
-    if (!day.dinner) {
-      day.dinner = picks[pickIdx] || null;
-      if (day.dinner) {
-        const r = getRecipeById(day.dinner);
-        if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); updatedRecipes.push(r); }
+    const dow = new Date(day.date + 'T00:00:00').getDay();
+    const nightType = nightPrep[dow] || 'full';
+    if (nightType === 'none') return; // skip — no meal needed
+    if (getMeals(day, 'dinner').length > 0) return; // already assigned
+
+    // For quick nights, prefer quick recipes; fall back to full pool if none available
+    let candidateId = picks[pickIdx] || null;
+    if (nightType === 'quick' && candidateId) {
+      const r = getRecipeById(candidateId);
+      if (r && (r.prepTime||0)+(r.cookTime||0) > QUICK_THRESHOLD) {
+        // Try to find a quick alternative not already picked
+        const alt = quickPool.find(qr => !pickedIds.has(qr.id));
+        if (alt) { candidateId = alt.id; pickedIds.add(alt.id); }
       }
-      pickIdx++;
     }
+
+    if (!day.dinners) day.dinners = [];
+    if (candidateId) {
+      day.dinners.push({ id: candidateId, batches: 1 });
+      day.dinner = null; day.dinnerBatches = 1; // clear legacy
+      const r = getRecipeById(candidateId);
+      if (r) { r.frequency = (r.frequency||0)+1; r.lastPlanned = dateKey(new Date()); updatedRecipes.push(r); }
+    }
+    pickIdx++;
   });
 
   persistToSession();
@@ -1626,7 +1773,11 @@ function autoSuggestWeek() {
 
 function finalizeWeek() {
   const plan = ensureWeekPlan(currentWeekStart);
-  const missing = plan.days.filter(d => !d.dinner).length;
+  const np = appData.settings.nightPrep || {};
+  const missing = plan.days.filter(d => {
+    const dow = new Date(d.date + 'T00:00:00').getDay();
+    return (np[dow] || 'full') !== 'none' && getMeals(d, 'dinner').length === 0;
+  }).length;
   if (missing > 0) {
     showToast(`${missing} dinner${missing>1?'s':''} still need to be filled in.`, 'error'); return;
   }
@@ -1855,6 +2006,13 @@ function openAddRecipe(editId) {
   if (scanStatus) scanStatus.textContent = 'Choose a photo to get started.';
   const scanInput = document.getElementById('scan-file-input');
   if (scanInput) scanInput.value = '';
+  // Reset URL tab
+  const urlInput = document.getElementById('url-import-input');
+  if (urlInput) urlInput.value = '';
+  const urlStatus = document.getElementById('url-import-status');
+  if (urlStatus) urlStatus.textContent = '';
+  const urlBtn = document.getElementById('url-import-btn');
+  if (urlBtn) { urlBtn.disabled = false; urlBtn.textContent = '🔗 Import Recipe'; }
   document.getElementById('f-servings').value = appData.settings.servings || 5;
   document.getElementById('f-difficulty').value = 'easy';
   document.getElementById('f-protein').value = 'chicken';
@@ -1931,10 +2089,10 @@ function setSourceTypeC(type) {
 }
 
 function saveRecipe() {
-  const activeTab = document.querySelector('.add-recipe-tab.active').textContent.includes('Claude') ? 'claude' : 'manual';
-
-  if (activeTab === 'claude') {
-    importFromClaude(); return;
+  const tabText = document.querySelector('.add-recipe-tab.active')?.textContent || '';
+  if (tabText.includes('Claude')) { importFromClaude(); return; }
+  if (tabText.includes('Scan') || tabText.includes('URL')) {
+    showToast('Use the import button in the tab above to scan or import.', ''); return;
   }
 
   const name = document.getElementById('f-name').value.trim();
@@ -2030,10 +2188,11 @@ function guessFreshness(name) {
 
 // ── CLAUDE IMPORT ────────────────────────────────
 function switchAddTab(tab) {
-  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['scan','manual','claude'][i]===tab));
-  document.getElementById('tab-manual').classList.toggle('active', tab==='manual');
-  document.getElementById('tab-claude').classList.toggle('active', tab==='claude');
-  document.getElementById('tab-scan').classList.toggle('active', tab==='scan');
+  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['scan','url','manual','claude'][i]===tab));
+  ['scan','url','manual','claude'].forEach(name => {
+    const el = document.getElementById('tab-'+name);
+    if (el) el.classList.toggle('active', tab===name);
+  });
 }
 
 function copyClaudePrompt() {
@@ -2133,31 +2292,32 @@ function renderGrocery() {
 
   plan.days.forEach((day, idx) => {
     ['dinner','lunch','breakfast'].forEach(mealType => {
-      if (!day[mealType]) return;
-      const r = getRecipeById(day[mealType]);
-      if (!r || !r.ingredients) return;
-      const batches = Math.max(1, parseInt(day[mealType + 'Batches']) || 1);
-      r.ingredients.forEach(ing => {
-        if (isStaple(ing.name)) return;
-        // Scale ingredient quantity by batch count
-        const scaledQtyStr = multiplyQuantity(String(ing.quantity || ''), batches);
-        const isTrip2 = ing.freshness === 'short-shelf' && trip2Days.includes(idx);
-        const list = isTrip2 ? trip2Items : trip1Items;
-        const existing = list.find(x => x.name.toLowerCase() === ing.name.toLowerCase() && x.unit === ing.unit);
-        if (existing) {
-          // Combine quantities: try numeric addition, otherwise concatenate with "+"
-          const q1 = existing.quantity, q2 = scaledQtyStr;
-          const n1 = parseFloat(q1), n2 = parseFloat(q2);
-          existing.quantity = (!isNaN(n1) && !isNaN(n2) && !q1.includes('/') && !q2.includes('/'))
-            ? String(n1 + n2)
-            : `${q1} + ${q2}`;
-          if (!existing.meals.includes(r.name)) existing.meals.push(r.name);
-        } else {
-          list.push({ name: ing.name, quantity: scaledQtyStr, unit: ing.unit||'', storeSection: ing.storeSection||'other', meals: [r.name], checked: false });
-        }
-      });
-    });
-  });
+      getMeals(day, mealType).forEach(({id, batches: itemBatches}) => {
+        const r = getRecipeById(id);
+        if (!r || !r.ingredients) return;
+        const batches = Math.max(1, itemBatches || 1);
+        r.ingredients.forEach(ing => {
+          if (isStaple(ing.name)) return;
+          // Scale ingredient quantity by batch count
+          const scaledQtyStr = multiplyQuantity(String(ing.quantity || ''), batches);
+          const isTrip2 = ing.freshness === 'short-shelf' && trip2Days.includes(idx);
+          const list = isTrip2 ? trip2Items : trip1Items;
+          const existing = list.find(x => x.name.toLowerCase() === ing.name.toLowerCase() && x.unit === ing.unit);
+          if (existing) {
+            // Combine quantities: try numeric addition, otherwise concatenate with "+"
+            const q1 = existing.quantity, q2 = scaledQtyStr;
+            const n1 = parseFloat(q1), n2 = parseFloat(q2);
+            existing.quantity = (!isNaN(n1) && !isNaN(n2) && !q1.includes('/') && !q2.includes('/'))
+              ? String(n1 + n2)
+              : `${q1} + ${q2}`;
+            if (!existing.meals.includes(r.name)) existing.meals.push(r.name);
+          } else {
+            list.push({ name: ing.name, quantity: scaledQtyStr, unit: ing.unit||'', storeSection: ing.storeSection||'other', meals: [r.name], checked: false });
+          }
+        });
+      }); // end getMeals forEach
+    }); // end mealType forEach
+  }); // end days forEach
 
   const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
   const sectionLabels = {produce:'🥦 Produce',meat:'🥩 Meat & Seafood',dairy:'🧀 Dairy & Eggs',frozen:'❄️ Frozen',pantry:'🥫 Pantry & Dry Goods',bakery:'🍞 Bakery',other:'📦 Other'};
@@ -2247,6 +2407,25 @@ function renderSettings() {
   document.getElementById('s-trip2').value = s.trip2Day||'wednesday';
   document.getElementById('s-norepeat').value = s.noRepeatWeeks||2;
   document.getElementById('s-maxprotein').value = s.maxSameProtein||3;
+
+  // Night schedule
+  const nightPrep = s.nightPrep || {};
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const grid = document.getElementById('night-schedule-grid');
+  if (grid) {
+    grid.innerHTML = `<span style="font-size:11px;font-weight:700;color:var(--gray-light);text-transform:uppercase">Day</span>
+      <span style="font-size:11px;font-weight:700;color:var(--gray-light);text-transform:uppercase">Dinner Type</span>` +
+      days.map((day, i) => {
+        const val = nightPrep[i] || 'full';
+        return `<span style="font-size:13px;font-weight:600;color:var(--gray)">${day}</span>
+          <select id="s-night-${i}" class="form-input" onchange="saveSettings()" style="padding:5px 8px;font-size:12px">
+            <option value="full"${val==='full'?' selected':''}>Full prep — any recipe</option>
+            <option value="quick"${val==='quick'?' selected':''}>Quick meal — under 30 min</option>
+            <option value="none"${val==='none'?' selected':''}>No meal — eat out / leftovers</option>
+          </select>`;
+      }).join('');
+  }
+
   renderStaples();
 }
 
@@ -2257,6 +2436,13 @@ function saveSettings() {
   appData.settings.trip2Day = document.getElementById('s-trip2').value;
   appData.settings.noRepeatWeeks = parseInt(document.getElementById('s-norepeat').value)||2;
   appData.settings.maxSameProtein = parseInt(document.getElementById('s-maxprotein').value)||3;
+  // Night schedule
+  const nightPrep = {};
+  for (let i = 0; i < 7; i++) {
+    const el = document.getElementById(`s-night-${i}`);
+    if (el) nightPrep[i] = el.value;
+  }
+  appData.settings.nightPrep = nightPrep;
   persistToSession();
   sbSaveSettings();
   showToast('Settings saved.', 'success');
@@ -2510,6 +2696,7 @@ async function triggerInstall() {
 let _scanImageSrc = null;   // data: URL (in-app) or https: URL (queue)
 let _scanParsed   = null;   // last parsed recipe object from /api/parse-recipe
 let _pendingQueueId = null; // pending_recipes.id if we arrived from the iOS queue
+let _scanSource   = { type: 'scan', value: null }; // source recorded when validation modal opens
 
 function handleScanFile(event) {
   const file = event.target.files[0];
@@ -2540,6 +2727,7 @@ async function runScan() {
   try {
     const parsed = await _callParseRecipe(_scanImageSrc);
     _scanParsed = parsed;
+    _scanSource = { type: 'scan', value: null };
     closeModal('modal-add-recipe');
     _openScanValidation(parsed, _scanImageSrc);
   } catch(e) {
@@ -2570,6 +2758,46 @@ async function _callParseRecipe(src) {
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(`API ${res.status}: ${errText}`);
+  }
+  return res.json();
+}
+
+// ── URL Import ────────────────────────────────────
+async function runUrlImport() {
+  const urlEl  = document.getElementById('url-import-input');
+  const btn    = document.getElementById('url-import-btn');
+  const status = document.getElementById('url-import-status');
+  const url    = (urlEl?.value || '').trim();
+  if (!url || !url.startsWith('http')) {
+    status.textContent = '✗ Please paste a full URL starting with https://';
+    status.style.color = 'var(--red)'; return;
+  }
+  btn.disabled = true; btn.textContent = '⏳ Importing…';
+  status.textContent = 'Fetching page and reading recipe — usually 10–20 seconds…';
+  status.style.color = 'var(--teal)';
+  try {
+    const parsed = await _callFetchRecipe(url);
+    _scanParsed  = parsed;
+    _scanSource  = { type: 'url', value: url };
+    closeModal('modal-add-recipe');
+    _openScanValidation(parsed, null);
+  } catch(e) {
+    status.textContent = '✗ ' + (e.message || 'Import failed. The site may block automated access.');
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔗 Import Recipe';
+  }
+}
+
+async function _callFetchRecipe(url) {
+  const res = await fetch('/api/fetch-recipe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -2616,11 +2844,11 @@ function _openScanValidation(parsed, imageSrc) {
   ).join('') || '<em style="color:#aaa">None detected</em>';
 
   const html = `
-    <div class="scan-validate-layout">
-      <div class="scan-photo-col">
+    <div class="${imageSrc ? 'scan-validate-layout' : ''}">
+      ${imageSrc ? `<div class="scan-photo-col">
         <img src="${_escHtml(imageSrc)}" alt="Recipe photo">
         <p style="font-size:11px;color:var(--gray-mid);margin-top:8px;text-align:center">Original photo — compare as you edit</p>
-      </div>
+      </div>` : ''}
       <div>
         ${_fieldRow('Recipe Name', 'name', parsed.name, c.name)}
         <div class="svf-2col">
@@ -2674,7 +2902,7 @@ function approveScanFinal() {
     })),
     instructions: _scanParsed.instructions || [],
     notes:  g('notes').value.trim(),
-    source: { type: 'scan', value: null },
+    source: _scanSource || { type: 'scan', value: null },
     frequency: 0, lastPlanned: null,
     dateAdded: dateKey(new Date())
   };
