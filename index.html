@@ -253,6 +253,33 @@ a:hover{text-decoration:underline}
 .paste-area.valid{border-color:var(--green);background:var(--green-bg)}
 .paste-area.invalid{border-color:var(--red);background:var(--red-bg)}
 
+/* ── SCAN PHOTO TAB ── */
+.scan-drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#fff;position:relative}
+.scan-drop-zone:hover{border-color:var(--green);background:var(--green-bg)}
+.scan-drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+#scan-preview{width:100%;max-height:200px;object-fit:contain;border-radius:6px;border:1px solid var(--border);margin-top:12px;display:none}
+.conf-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;flex-shrink:0;vertical-align:middle}
+.conf-dot-high{background:#4CAF50}
+.conf-dot-mid{background:#FFA726}
+.conf-dot-low{background:#EF5350}
+
+/* ── SCAN VALIDATION MODAL ── */
+.scan-validate-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media(max-width:680px){.scan-validate-layout{grid-template-columns:1fr}}
+.scan-photo-col img{width:100%;max-height:400px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:var(--gray-bg)}
+.scan-photo-col{position:sticky;top:0}
+.svf-row{margin-bottom:9px}
+.svf-label{font-size:11px;font-weight:700;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:4px;margin-bottom:3px}
+.svf-input{width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 9px;font-size:13px;color:var(--gray);background:#fff}
+.svf-input:focus{outline:none;border-color:var(--teal)}
+.svf-input.svf-warn{border-color:#FFA726;background:#FFF8E1}
+.svf-input.svf-alert{border-color:#EF5350;background:#FFEBEE}
+.svf-scroll{max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:5px;padding:8px;font-size:12px;line-height:1.9;background:#fff}
+.svf-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* ── PENDING BADGE ── */
+.pending-badge{display:none;background:#E65100;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px;vertical-align:middle;line-height:14px}
+
 /* ── SOURCE FIELD ── */
 .source-type-select{display:flex;gap:6px;margin-bottom:8px}
 .source-type-btn{flex:1;padding:6px;border:2px solid var(--border);border-radius:5px;background:#fff;font-size:12px;font-weight:600;color:var(--gray-mid);cursor:pointer;text-align:center;transition:all .15s}
@@ -292,7 +319,7 @@ a:hover{text-decoration:underline}
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showView('monthly')">📅 Monthly</button>
     <button class="nav-tab" onclick="showView('weekly')">📋 Weekly</button>
-    <button class="nav-tab" onclick="showView('library')">🍽️ Recipes</button>
+    <button class="nav-tab" onclick="showView('library')">🍽️ Recipes<span id="pending-badge" class="pending-badge" title="Pending recipe photos — click to review" onclick="event.stopPropagation();openPendingQueue()">0</span></button>
     <button class="nav-tab" onclick="showView('grocery')">🛒 Grocery</button>
     <button class="nav-tab" onclick="showView('settings')">⚙️ Settings</button>
   </div>
@@ -498,6 +525,7 @@ a:hover{text-decoration:underline}
       <div class="add-recipe-tabs">
         <button class="add-recipe-tab active" onclick="switchAddTab('manual')">✏️ Manual Entry</button>
         <button class="add-recipe-tab" onclick="switchAddTab('claude')">🤖 Add via Claude</button>
+        <button class="add-recipe-tab" onclick="switchAddTab('scan')">📷 Scan Photo</button>
       </div>
 
       <!-- MANUAL ENTRY -->
@@ -577,6 +605,37 @@ a:hover{text-decoration:underline}
           <div class="form-section-title">Family Notes &amp; Tips</div>
           <div class="form-field">
             <textarea id="f-notes" placeholder="e.g. Kids prefer less spice — halve the cayenne. Great with rice."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCAN PHOTO -->
+      <div id="tab-scan" class="add-recipe-panel">
+        <div class="claude-flow">
+          <div class="claude-step">
+            <div class="claude-step-num">1</div>
+            <div class="claude-step-content">
+              <h4>Take or choose a photo</h4>
+              <p>Point your camera at a cookbook page, recipe card, or handwritten note. On iPhone, tapping the drop zone opens your camera directly.</p>
+              <div class="scan-drop-zone" onclick="document.getElementById('scan-file-input').click()">
+                <input type="file" id="scan-file-input" accept="image/*" capture="environment" style="display:none" onchange="handleScanFile(event)">
+                <div id="scan-drop-label">
+                  <div style="font-size:28px;margin-bottom:6px">📷</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--gray-mid)">Tap to take a photo or choose from library</div>
+                  <div style="font-size:11px;color:var(--gray-light);margin-top:4px">JPG, PNG, HEIC supported</div>
+                </div>
+                <img id="scan-preview" src="" alt="Preview">
+              </div>
+            </div>
+          </div>
+          <div class="claude-step">
+            <div class="claude-step-num">2</div>
+            <div class="claude-step-content">
+              <h4>Scan &amp; review</h4>
+              <p>Claude will read the recipe and extract all fields automatically. You'll get a side-by-side view to confirm or edit before saving.</p>
+              <button id="scan-btn" class="btn btn-primary" onclick="runScan()" disabled>🔍 Scan Recipe</button>
+              <div id="scan-status" style="font-size:12px;margin-top:8px;color:var(--gray-mid)">Choose a photo to get started.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -680,6 +739,23 @@ CRITICAL PARSING RULES (DO NOT VIOLATE):
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-recipe')">Cancel</button>
       <button id="save-recipe-btn" class="btn btn-primary" onclick="saveRecipe()">Save Recipe</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCAN VALIDATE MODAL ═══════════════════════ -->
+<div id="modal-scan-validate" class="modal-overlay">
+  <div class="modal" style="max-width:900px;width:96vw">
+    <div class="modal-header">
+      <span class="modal-title">Review Scanned Recipe</span>
+      <button class="modal-close" onclick="closeModal('modal-scan-validate')">✕</button>
+    </div>
+    <div class="modal-body" id="scan-validate-body" style="max-height:75vh;overflow-y:auto">
+      <!-- populated by openScanValidation() -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-scan-validate')">Discard</button>
+      <button class="btn btn-primary" onclick="approveScanFinal()">✓ Add to Library</button>
     </div>
   </div>
 </div>
@@ -826,6 +902,14 @@ async function sbUpsert(table, body) {
 async function sbDelete(table, query) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}${query}`, { method: 'DELETE', headers: SB_HDR });
   if (!r.ok) throw new Error(`DELETE ${table} ${r.status}`);
+}
+async function sbPatch(table, query, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${query}`, {
+    method: 'PATCH',
+    headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) { const t = await r.text(); throw new Error(`PATCH ${table} ${r.status}: ${t}`); }
 }
 
 // ── DB ↔ APP mappers ─────────────────────────────
@@ -1937,9 +2021,10 @@ function guessFreshness(name) {
 
 // ── CLAUDE IMPORT ────────────────────────────────
 function switchAddTab(tab) {
-  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['manual','claude'][i]===tab));
+  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['manual','claude','scan'][i]===tab));
   document.getElementById('tab-manual').classList.toggle('active', tab==='manual');
   document.getElementById('tab-claude').classList.toggle('active', tab==='claude');
+  document.getElementById('tab-scan').classList.toggle('active', tab==='scan');
 }
 
 function copyClaudePrompt() {
@@ -2411,6 +2496,273 @@ async function triggerInstall() {
 }
 
 // ═══════════════════════════════════════════════════
+// PHOTO SCAN — Direct in-app capture
+// ═══════════════════════════════════════════════════
+let _scanImageSrc = null;   // data: URL (in-app) or https: URL (queue)
+let _scanParsed   = null;   // last parsed recipe object from /api/parse-recipe
+let _pendingQueueId = null; // pending_recipes.id if we arrived from the iOS queue
+
+function handleScanFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _scanImageSrc = e.target.result;
+    const preview = document.getElementById('scan-preview');
+    preview.src = _scanImageSrc;
+    preview.style.display = 'block';
+    document.getElementById('scan-drop-label').style.display = 'none';
+    document.getElementById('scan-btn').disabled = false;
+    document.getElementById('scan-status').textContent = 'Photo selected — tap "Scan Recipe" to extract.';
+    document.getElementById('scan-status').style.color = 'var(--gray-mid)';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runScan() {
+  if (!_scanImageSrc) return;
+  const btn    = document.getElementById('scan-btn');
+  const status = document.getElementById('scan-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning…';
+  status.textContent = 'Claude Vision is reading the recipe — usually 10–15 seconds…';
+  status.style.color = 'var(--teal)';
+
+  try {
+    const parsed = await _callParseRecipe(_scanImageSrc);
+    _scanParsed = parsed;
+    closeModal('modal-add-recipe');
+    _openScanValidation(parsed, _scanImageSrc);
+  } catch(e) {
+    status.textContent = '✗ Scan failed: ' + (e.message || 'Unknown error') + '. Please try again.';
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Scan Recipe';
+  }
+}
+
+// Calls the Vercel /api/parse-recipe endpoint.
+// src can be a data: URL (in-app) or a https: URL (queue — Vercel fetches it server-side).
+async function _callParseRecipe(src) {
+  let body;
+  if (src.startsWith('data:')) {
+    const [header, data] = src.split(',');
+    const mimeType = header.match(/:(.*?);/)[1];
+    body = { image: data, mimeType };
+  } else {
+    body = { imageUrl: src };
+  }
+  const res = await fetch('/api/parse-recipe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`API ${res.status}: ${errText}`);
+  }
+  return res.json();
+}
+
+// ── Validation modal ─────────────────────────────
+function _escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _confDot(score) {
+  const cls = score >= 85 ? 'high' : score >= 60 ? 'mid' : 'low';
+  return `<span class="conf-dot conf-dot-${cls}" title="Confidence: ${score}%"></span>`;
+}
+
+function _warnCls(score) {
+  return score >= 85 ? '' : score >= 60 ? 'svf-warn' : 'svf-alert';
+}
+
+function _fieldRow(label, id, value, score, type) {
+  type = type || 'text';
+  return `<div class="svf-row">
+    <div class="svf-label">${_confDot(score ?? 99)}${_escHtml(label)}<span style="font-size:10px;opacity:.55;margin-left:4px">${score ?? '?'}%</span></div>
+    <input id="svf-${id}" class="svf-input ${_warnCls(score ?? 99)}" type="${type}" value="${_escHtml(String(value ?? ''))}">
+  </div>`;
+}
+
+function _selectRow(label, id, value, score, options) {
+  const opts = options.map(o => `<option value="${_escHtml(o)}"${value===o?' selected':''}>${_escHtml(o)}</option>`).join('');
+  return `<div class="svf-row">
+    <div class="svf-label">${_confDot(score ?? 99)}${_escHtml(label)}<span style="font-size:10px;opacity:.55;margin-left:4px">${score ?? '?'}%</span></div>
+    <select id="svf-${id}" class="svf-input ${_warnCls(score ?? 99)}">${opts}</select>
+  </div>`;
+}
+
+function _openScanValidation(parsed, imageSrc) {
+  const c = parsed.confidence || {};
+
+  const ingLines = (parsed.ingredients || []).map(ing =>
+    `<div style="padding:3px 0;border-bottom:1px solid #f0f0f0">${_escHtml([ing.quantity, ing.unit, ing.name, ing.prep].filter(Boolean).join(' '))}</div>`
+  ).join('') || '<em style="color:#aaa">None detected</em>';
+
+  const instLines = (parsed.instructions || []).map((s, i) =>
+    `<div style="padding:3px 0;border-bottom:1px solid #f0f0f0"><span style="font-weight:700;color:var(--teal)">${i+1}.</span> ${_escHtml(s)}</div>`
+  ).join('') || '<em style="color:#aaa">None detected</em>';
+
+  const html = `
+    <div class="scan-validate-layout">
+      <div class="scan-photo-col">
+        <img src="${_escHtml(imageSrc)}" alt="Recipe photo">
+        <p style="font-size:11px;color:var(--gray-mid);margin-top:8px;text-align:center">Original photo — compare as you edit</p>
+      </div>
+      <div>
+        ${_fieldRow('Recipe Name', 'name', parsed.name, c.name)}
+        <div class="svf-2col">
+          ${_fieldRow('Servings', 'servings', parsed.servings, c.servings)}
+          ${_fieldRow('Prep Time (min)', 'prepTime', parsed.prepTime, c.prepTime, 'number')}
+          ${_fieldRow('Cook Time (min)', 'cookTime', parsed.cookTime, c.cookTime, 'number')}
+          ${_selectRow('Difficulty', 'difficulty', parsed.difficulty, c.difficulty, ['easy','medium','hard'])}
+          ${_selectRow('Protein', 'protein', parsed.protein, c.protein, ['chicken','beef','pork','fish','seafood','vegetarian','eggs','mixed'])}
+          ${_selectRow('Cuisine', 'cuisine', parsed.cuisine, c.cuisine, ['italian','mexican','american','asian','mediterranean','other'])}
+          ${_selectRow('Course', 'course', parsed.course, c.course, ['dinner','lunch','breakfast','side','dessert'])}
+        </div>
+        ${_fieldRow('Tags (comma-separated)', 'tags', (parsed.tags || []).join(', '), c.tags)}
+        <div class="svf-row">
+          <div class="svf-label">${_confDot(c.ingredients ?? 99)}Ingredients<span style="font-size:10px;opacity:.55;margin-left:4px">${c.ingredients ?? '?'}%</span></div>
+          <div class="svf-scroll">${ingLines}</div>
+        </div>
+        <div class="svf-row">
+          <div class="svf-label">${_confDot(c.instructions ?? 99)}Instructions<span style="font-size:10px;opacity:.55;margin-left:4px">${c.instructions ?? '?'}%</span></div>
+          <div class="svf-scroll">${instLines}</div>
+        </div>
+        ${_fieldRow('Notes', 'notes', parsed.notes, 99)}
+        <p style="font-size:11px;color:var(--gray-mid);margin-top:8px">
+          ${_confDot(90)} ≥85% confident &nbsp; ${_confDot(70)} 60–84% — check &nbsp; ${_confDot(30)} &lt;60% — likely needs edit
+        </p>
+      </div>
+    </div>`;
+
+  document.getElementById('scan-validate-body').innerHTML = html;
+  openModal('modal-scan-validate');
+}
+
+function approveScanFinal() {
+  if (!_scanParsed) return;
+  const g = id => document.getElementById('svf-' + id);
+
+  const recipe = {
+    id: generateId(),
+    name:       g('name').value.trim() || 'Untitled Recipe',
+    servings:   g('servings').value || _scanParsed.servings || 5,
+    prepTime:   parseInt(g('prepTime').value)  || 0,
+    cookTime:   parseInt(g('cookTime').value)  || 0,
+    difficulty: g('difficulty').value || 'medium',
+    protein:    g('protein').value    || 'mixed',
+    cuisine:    g('cuisine').value    || 'other',
+    course:     g('course').value     || 'dinner',
+    tags:       g('tags').value.split(',').map(t => t.trim()).filter(Boolean),
+    ingredients: (_scanParsed.ingredients || []).map(ing => ({
+      ...ing,
+      isStaple: isStaple(ing.name || ''),
+      storeSection: ing.storeSection || guessFreshness(ing.name || '')
+    })),
+    instructions: _scanParsed.instructions || [],
+    notes:  g('notes').value.trim(),
+    source: { type: 'scan', value: null },
+    frequency: 0, lastPlanned: null,
+    dateAdded: dateKey(new Date())
+  };
+
+  appData.recipes.push(recipe);
+  persistToSession();
+  sbSaveRecipe(recipe);
+  closeModal('modal-scan-validate');
+  renderLibrary();
+  showToast(`"${recipe.name}" added to library!`, 'success');
+
+  // If this came from the iOS queue, mark it approved and check for more
+  if (_pendingQueueId) {
+    const resolvedId = _pendingQueueId;
+    _pendingQueueId = null;
+    sbPatch('pending_recipes', `?id=eq.${resolvedId}`, { status: 'approved' })
+      .then(() => checkPendingQueue())
+      .then(remaining => {
+        if (remaining.length > 0) {
+          setTimeout(() => showToast(`${remaining.length} more photo${remaining.length > 1 ? 's' : ''} in queue — check Recipes tab`, 'success'), 900);
+        }
+      })
+      .catch(e => console.warn('Failed to mark pending_recipe approved:', e));
+  }
+
+  // Reset scan state
+  _scanImageSrc = null;
+  _scanParsed   = null;
+}
+
+// ═══════════════════════════════════════════════════
+// iOS SHORTCUT QUEUE — check + process pending photos
+// ═══════════════════════════════════════════════════
+const SB_STORAGE_PUBLIC = `${SB_URL}/storage/v1/object/public/recipe-inbox`;
+
+async function checkPendingQueue() {
+  try {
+    const rows = await sbGet('pending_recipes', '?status=eq.pending&order=created_at.asc&select=*');
+    const badge = document.getElementById('pending-badge');
+    if (rows && rows.length > 0) {
+      badge.textContent = rows.length;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+    return rows || [];
+  } catch(e) {
+    console.warn('checkPendingQueue error (table may not exist yet):', e);
+    return [];
+  }
+}
+
+// Called when user taps the orange badge on the Recipes nav tab
+async function openPendingQueue() {
+  const rows = await checkPendingQueue();
+  if (rows.length === 0) {
+    showToast('No pending photos in the queue.', 'success');
+    return;
+  }
+  processPendingItem(rows[0]);
+}
+
+async function processPendingItem(item) {
+  showToast('Loading queued photo…', 'success');
+  try {
+    // Build the public URL for this file in Supabase Storage
+    // image_path is stored as the filename only (e.g. "abc123.jpg")
+    const imageUrl = `${SB_STORAGE_PUBLIC}/${item.image_path}`;
+
+    // Mark as processing so it doesn't get picked up twice
+    await sbPatch('pending_recipes', `?id=eq.${item.id}`, { status: 'processing' });
+
+    showToast('Scanning recipe with Claude Vision…', 'success');
+    const parsed = await _callParseRecipe(imageUrl);
+
+    // Cache the result in Supabase in case they want to come back to it
+    await sbPatch('pending_recipes', `?id=eq.${item.id}`, {
+      parsed_data: parsed,
+      confidence:  parsed.confidence || {},
+      status: 'ready'
+    });
+
+    _scanParsed      = parsed;
+    _scanImageSrc    = imageUrl;
+    _pendingQueueId  = item.id;
+    await checkPendingQueue();
+    _openScanValidation(parsed, imageUrl);
+
+  } catch(e) {
+    console.error('processPendingItem error:', e);
+    // Revert status so it can be retried
+    await sbPatch('pending_recipes', `?id=eq.${item.id}`, { status: 'pending' }).catch(() => {});
+    showToast('Failed to process photo: ' + (e.message || 'Unknown error'), 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════
 // initData() runs its localStorage section synchronously before the first await,
@@ -2422,6 +2774,8 @@ _initPromise.then(() => {
   // Re-render once Supabase data has arrived
   const active = document.querySelector('.view.active');
   if (active) showView(active.id.replace('view-',''));
+  // Check for any photos queued via iOS Shortcut
+  checkPendingQueue();
 });
 </script>
 </body>
