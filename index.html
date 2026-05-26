@@ -523,9 +523,9 @@ a:hover{text-decoration:underline}
     </div>
     <div class="modal-body">
       <div class="add-recipe-tabs">
-        <button class="add-recipe-tab active" onclick="switchAddTab('manual')">✏️ Manual Entry</button>
+        <button class="add-recipe-tab active" onclick="switchAddTab('scan')">📷 Scan Photo</button>
+        <button class="add-recipe-tab" onclick="switchAddTab('manual')">✏️ Manual Entry</button>
         <button class="add-recipe-tab" onclick="switchAddTab('claude')">🤖 Add via Claude</button>
-        <button class="add-recipe-tab" onclick="switchAddTab('scan')">📷 Scan Photo</button>
       </div>
 
       <!-- MANUAL ENTRY -->
@@ -1836,7 +1836,7 @@ function openAddRecipe(editId) {
   document.getElementById('edit-recipe-id').value = editId || '';
 
   // Reset form
-  switchAddTab('manual');
+  switchAddTab('scan');
   ['f-name','f-prep','f-cook','f-servings','f-tags','f-instructions','f-notes',
    'f-source-url','f-source-file','claude-paste'].forEach(id => {
     const el = document.getElementById(id);
@@ -1846,6 +1846,15 @@ function openAddRecipe(editId) {
   if (pasteStatus) { pasteStatus.textContent = 'Waiting for input…'; pasteStatus.style.color = 'var(--gray-light)'; }
   const pasteArea = document.getElementById('claude-paste');
   if (pasteArea) pasteArea.className = 'paste-area';
+  // Reset scan tab
+  const scanPreview = document.getElementById('scan-preview');
+  if (scanPreview) { scanPreview.src = ''; scanPreview.style.display = 'none'; }
+  const scanBtn = document.getElementById('scan-btn');
+  if (scanBtn) scanBtn.disabled = true;
+  const scanStatus = document.getElementById('scan-status');
+  if (scanStatus) scanStatus.textContent = 'Choose a photo to get started.';
+  const scanInput = document.getElementById('scan-file-input');
+  if (scanInput) scanInput.value = '';
   document.getElementById('f-servings').value = appData.settings.servings || 5;
   document.getElementById('f-difficulty').value = 'easy';
   document.getElementById('f-protein').value = 'chicken';
@@ -2021,7 +2030,7 @@ function guessFreshness(name) {
 
 // ── CLAUDE IMPORT ────────────────────────────────
 function switchAddTab(tab) {
-  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['manual','claude','scan'][i]===tab));
+  document.querySelectorAll('.add-recipe-tab').forEach((t,i) => t.classList.toggle('active', ['scan','manual','claude'][i]===tab));
   document.getElementById('tab-manual').classList.toggle('active', tab==='manual');
   document.getElementById('tab-claude').classList.toggle('active', tab==='claude');
   document.getElementById('tab-scan').classList.toggle('active', tab==='scan');
