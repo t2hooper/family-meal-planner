@@ -258,6 +258,9 @@ a:hover{text-decoration:underline}
 .scan-drop-zone:hover{border-color:var(--green);background:var(--green-bg)}
 .scan-drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 #scan-preview{width:100%;max-height:200px;object-fit:contain;border-radius:6px;border:1px solid var(--border);margin-top:12px;display:none}
+.scan-previews-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;justify-content:center}
+.scan-previews-grid img{height:90px;width:auto;max-width:120px;object-fit:cover;border-radius:5px;border:2px solid var(--green);background:var(--gray-bg)}
+.scan-photo-count{font-size:11px;font-weight:700;color:var(--green);margin-top:4px;text-align:center}
 .conf-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;flex-shrink:0;vertical-align:middle}
 .conf-dot-high{background:#4CAF50}
 .conf-dot-mid{background:#FFA726}
@@ -296,11 +299,25 @@ a:hover{text-decoration:underline}
 
 /* ── PRINT STYLES ── */
 @media print {
-  #app-nav,.nav-tabs,.btn,.modal-footer,.filter-bar,#view-monthly,#view-weekly,#view-library,#view-grocery,#view-settings,.week-actions,.modal-overlay:not(.printing){display:none!important}
+  /* Recipe print (recipe modal has .printing class added before window.print()) */
+  #app-nav,.nav-tabs,.btn,.modal-footer,.filter-bar,#view-monthly,#view-weekly,#view-library,#view-settings,.week-actions,.modal-overlay:not(.printing){display:none!important}
   .modal-overlay.printing{display:block!important;position:static!important;background:none!important;padding:0!important}
   .modal.printing{box-shadow:none!important;max-width:100%!important}
   .recipe-body{display:grid!important}
   body{font-size:12px}
+
+  /* Grocery print — body gets .printing-grocery before window.print() */
+  body:not(.printing-grocery) #view-grocery{display:none!important}
+  body.printing-grocery #view-grocery{display:block!important}
+  body.printing-grocery .page-header .btn,
+  body.printing-grocery .trip-tabs,
+  body.printing-grocery .grocery-item-move,
+  body.printing-grocery .grocery-extra-input,
+  body.printing-grocery #app-nav,
+  body.printing-grocery .find-recipes-bar{display:none!important}
+  body.printing-grocery .trip-panel{display:block!important}
+  body.printing-grocery .grocery-section{page-break-inside:avoid}
+  body.printing-grocery .grocery-item-name.checked{text-decoration:line-through;color:#999}
 }
 
 /* ── TOAST ── */
@@ -448,7 +465,7 @@ a:hover{text-decoration:underline}
     <span class="page-title">Grocery Lists</span>
     <div style="display:flex;gap:10px;align-items:center">
       <select id="grocery-week-select" class="filter-select" onchange="renderGrocery()"></select>
-      <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ Print</button>
+      <button class="btn btn-secondary btn-sm" onclick="printGrocery()">🖨️ Print</button>
       <button class="btn btn-teal btn-sm" onclick="openExportModal()">📋 Copy for AnyList</button>
     </div>
   </div>
@@ -642,16 +659,16 @@ a:hover{text-decoration:underline}
           <div class="claude-step">
             <div class="claude-step-num">1</div>
             <div class="claude-step-content">
-              <h4>Take or choose a photo</h4>
-              <p>Point your camera at a cookbook page, recipe card, or handwritten note. On iPhone, tap the drop zone to take a photo or choose one from your photo library.</p>
+              <h4>Choose one or more photos</h4>
+              <p>Select a single photo or multiple screenshots that together show the full recipe. On iPhone, tap the drop zone and select as many images as you need.</p>
               <div class="scan-drop-zone" onclick="document.getElementById('scan-file-input').click()">
-                <input type="file" id="scan-file-input" accept="image/*" style="display:none" onchange="handleScanFile(event)">
+                <input type="file" id="scan-file-input" accept="image/*" multiple style="display:none" onchange="handleScanFile(event)">
                 <div id="scan-drop-label">
                   <div style="font-size:28px;margin-bottom:6px">📷</div>
-                  <div style="font-size:13px;font-weight:600;color:var(--gray-mid)">Tap to take a photo or choose from library</div>
-                  <div style="font-size:11px;color:var(--gray-light);margin-top:4px">JPG, PNG, HEIC supported</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--gray-mid)">Tap to choose photo(s) from your library</div>
+                  <div style="font-size:11px;color:var(--gray-light);margin-top:4px">Select multiple if the recipe spans several screenshots</div>
                 </div>
-                <img id="scan-preview" src="" alt="Preview">
+                <div id="scan-previews" class="scan-previews-grid"></div>
               </div>
             </div>
           </div>
@@ -659,7 +676,7 @@ a:hover{text-decoration:underline}
             <div class="claude-step-num">2</div>
             <div class="claude-step-content">
               <h4>Scan &amp; review</h4>
-              <p>Claude will read the recipe and extract all fields automatically. You'll get a side-by-side view to confirm or edit before saving.</p>
+              <p>Claude reads all the photos together and combines them into one recipe. You'll review every field before it's saved.</p>
               <button id="scan-btn" class="btn btn-primary" onclick="runScan()" disabled>🔍 Scan Recipe</button>
               <div id="scan-status" style="font-size:12px;margin-top:8px;color:var(--gray-mid)">Choose a photo to get started.</div>
             </div>
@@ -1975,8 +1992,17 @@ function editCurrentRecipe() {
 function printRecipe() {
   document.getElementById('modal-recipe').classList.add('printing');
   window.print();
-  document.getElementById('modal-recipe').classList.remove('printing');
+  setTimeout(() => document.getElementById('modal-recipe').classList.remove('printing'), 1000);
 }
+
+function printGrocery() {
+  document.body.classList.add('printing-grocery');
+  window.print();
+  setTimeout(() => document.body.classList.remove('printing-grocery'), 1000);
+}
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('printing-grocery');
+});
 
 // ═══════════════════════════════════════════════════
 // ADD / EDIT RECIPE
@@ -1998,8 +2024,11 @@ function openAddRecipe(editId) {
   const pasteArea = document.getElementById('claude-paste');
   if (pasteArea) pasteArea.className = 'paste-area';
   // Reset scan tab
-  const scanPreview = document.getElementById('scan-preview');
-  if (scanPreview) { scanPreview.src = ''; scanPreview.style.display = 'none'; }
+  _scanImages = [];
+  const scanPreviews = document.getElementById('scan-previews');
+  if (scanPreviews) scanPreviews.innerHTML = '';
+  const scanDropLabel = document.getElementById('scan-drop-label');
+  if (scanDropLabel) scanDropLabel.style.display = '';
   const scanBtn = document.getElementById('scan-btn');
   if (scanBtn) scanBtn.disabled = true;
   const scanStatus = document.getElementById('scan-status');
@@ -2693,43 +2722,69 @@ async function triggerInstall() {
 // ═══════════════════════════════════════════════════
 // PHOTO SCAN — Direct in-app capture
 // ═══════════════════════════════════════════════════
-let _scanImageSrc = null;   // data: URL (in-app) or https: URL (queue)
+let _scanImages   = [];     // array of data: URLs selected in-app (multi-photo support)
+let _scanImageSrc = null;   // single https: URL used by the iOS Shortcut queue flow
 let _scanParsed   = null;   // last parsed recipe object from /api/parse-recipe
 let _pendingQueueId = null; // pending_recipes.id if we arrived from the iOS queue
 let _scanSource   = { type: 'scan', value: null }; // source recorded when validation modal opens
 
 function handleScanFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    _scanImageSrc = e.target.result;
-    const preview = document.getElementById('scan-preview');
-    preview.src = _scanImageSrc;
-    preview.style.display = 'block';
-    document.getElementById('scan-drop-label').style.display = 'none';
-    document.getElementById('scan-btn').disabled = false;
-    document.getElementById('scan-status').textContent = 'Photo selected — tap "Scan Recipe" to extract.';
-    document.getElementById('scan-status').style.color = 'var(--gray-mid)';
-  };
-  reader.readAsDataURL(file);
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  _scanImages = [];
+  const previewsEl = document.getElementById('scan-previews');
+  previewsEl.innerHTML = '';
+  document.getElementById('scan-drop-label').style.display = 'none';
+  document.getElementById('scan-btn').disabled = true;
+  document.getElementById('scan-status').textContent = 'Loading photos…';
+  document.getElementById('scan-status').style.color = 'var(--gray-mid)';
+
+  let loaded = 0;
+  files.forEach((file, idx) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      _scanImages[idx] = e.target.result; // preserve order
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.title = file.name;
+      previewsEl.appendChild(img);
+      loaded++;
+      if (loaded === files.length) {
+        // All loaded — filter out any gaps
+        _scanImages = _scanImages.filter(Boolean);
+        const n = _scanImages.length;
+        document.getElementById('scan-btn').disabled = false;
+        document.getElementById('scan-status').textContent =
+          n === 1 ? 'Photo ready — tap "Scan Recipe" to extract.'
+                  : `${n} photos ready — Claude will combine them into one recipe.`;
+        document.getElementById('scan-status').style.color = 'var(--gray-mid)';
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 async function runScan() {
-  if (!_scanImageSrc) return;
+  if (!_scanImages.length && !_scanImageSrc) return;
   const btn    = document.getElementById('scan-btn');
   const status = document.getElementById('scan-status');
   btn.disabled = true;
   btn.textContent = '⏳ Scanning…';
-  status.textContent = 'Claude Vision is reading the recipe — usually 10–15 seconds…';
+  const n = _scanImages.length;
+  status.textContent = n > 1
+    ? `Reading ${n} photos and combining into one recipe — this may take 15–20 seconds…`
+    : 'Claude Vision is reading the recipe — usually 10–15 seconds…';
   status.style.color = 'var(--teal)';
 
   try {
-    const parsed = await _callParseRecipe(_scanImageSrc);
+    // In-app flow uses _scanImages array; iOS Shortcut queue flow uses _scanImageSrc (single URL)
+    const parsed = _scanImages.length
+      ? await _callParseRecipe(_scanImages)
+      : await _callParseRecipe(_scanImageSrc);
     _scanParsed = parsed;
     _scanSource = { type: 'scan', value: null };
     closeModal('modal-add-recipe');
-    _openScanValidation(parsed, _scanImageSrc);
+    _openScanValidation(parsed, _scanImages.length ? _scanImages : _scanImageSrc);
   } catch(e) {
     status.textContent = '✗ Scan failed: ' + (e.message || 'Unknown error') + '. Please try again.';
     status.style.color = 'var(--red)';
@@ -2740,10 +2795,19 @@ async function runScan() {
 }
 
 // Calls the Vercel /api/parse-recipe endpoint.
-// src can be a data: URL (in-app) or a https: URL (queue — Vercel fetches it server-side).
+// src can be: array of data: URLs (multi-photo), single data: URL, or a https: URL (iOS queue).
 async function _callParseRecipe(src) {
   let body;
-  if (src.startsWith('data:')) {
+  if (Array.isArray(src)) {
+    // Multi-photo: convert each data URL to {data, mimeType}
+    body = {
+      images: src.map(dataUrl => {
+        const [header, data] = dataUrl.split(',');
+        const mimeType = header.match(/:(.*?);/)[1];
+        return { data, mimeType };
+      })
+    };
+  } else if (src.startsWith('data:')) {
     const [header, data] = src.split(',');
     const mimeType = header.match(/:(.*?);/)[1];
     body = { image: data, mimeType };
@@ -2843,12 +2907,19 @@ function _openScanValidation(parsed, imageSrc) {
     `<div style="padding:3px 0;border-bottom:1px solid #f0f0f0"><span style="font-weight:700;color:var(--teal)">${i+1}.</span> ${_escHtml(s)}</div>`
   ).join('') || '<em style="color:#aaa">None detected</em>';
 
+  // Build photo column — handles single string or array of data URLs
+  const srcs = Array.isArray(imageSrc) ? imageSrc : (imageSrc ? [imageSrc] : []);
+  const photoColHtml = srcs.length === 0 ? '' :
+    `<div class="scan-photo-col">
+      ${srcs.map((s, i) => `<img src="${_escHtml(s)}" alt="Photo ${i+1}" style="margin-bottom:8px">`).join('')}
+      <p style="font-size:11px;color:var(--gray-mid);margin-top:4px;text-align:center">
+        ${srcs.length > 1 ? `${srcs.length} photos combined` : 'Original photo'} — compare as you edit
+      </p>
+    </div>`;
+
   const html = `
-    <div class="${imageSrc ? 'scan-validate-layout' : ''}">
-      ${imageSrc ? `<div class="scan-photo-col">
-        <img src="${_escHtml(imageSrc)}" alt="Recipe photo">
-        <p style="font-size:11px;color:var(--gray-mid);margin-top:8px;text-align:center">Original photo — compare as you edit</p>
-      </div>` : ''}
+    <div class="${srcs.length ? 'scan-validate-layout' : ''}">
+      ${photoColHtml}
       <div>
         ${_fieldRow('Recipe Name', 'name', parsed.name, c.name)}
         <div class="svf-2col">
