@@ -1,6 +1,9 @@
 // Vercel Serverless Function — /api/parse-recipe
-// Accepts a POST with a base64-encoded image (direct scan) or a Supabase Storage URL
-// (iOS Shortcut queue). Calls Claude Vision with the server-side API key and returns
+// Accepts a POST with:
+//   { image, mimeType }         — single base64 image (in-app direct scan)
+//   { images: [{data,mimeType}] } — multiple base64 images (multi-photo scan)
+//   { imageUrl }                — Supabase Storage URL (iOS Shortcut queue)
+// Calls Claude Vision with the server-side API key and returns
 // structured recipe JSON plus per-field confidence scores.
 
 export default async function handler(req, res) {
@@ -15,24 +18,44 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
 
   try {
-    const { image, mimeType, imageUrl } = req.body || {};
+    const { image, mimeType, imageUrl, images } = req.body || {};
 
-    // Resolve image data — either raw base64 (in-app scan) or a remote URL (iOS Shortcut queue)
-    let imageData = image;
-    let imageMime = mimeType || 'image/jpeg';
+    // Build the array of image content blocks for the Claude API
+    let imageBlocks = [];
 
-    if (imageUrl && !imageData) {
+    if (images && Array.isArray(images) && images.length > 0) {
+      // Multi-photo: array of { data, mimeType } objects
+      imageBlocks = images.map(img => ({
+        type: 'image',
+        source: { type: 'base64', media_type: img.mimeType || 'image/jpeg', data: img.data }
+      }));
+    } else if (imageUrl && !image) {
+      // iOS Shortcut queue: remote URL — fetch and convert to base64
       const imgRes = await fetch(imageUrl);
       if (!imgRes.ok) throw new Error(`Failed to fetch image: ${imgRes.status}`);
       const buf = await imgRes.arrayBuffer();
-      imageData = Buffer.from(buf).toString('base64');
+      const imageData = Buffer.from(buf).toString('base64');
       const ct = imgRes.headers.get('content-type');
-      if (ct) imageMime = ct.split(';')[0].trim();
+      const imageMime = ct ? ct.split(';')[0].trim() : 'image/jpeg';
+      imageBlocks = [{
+        type: 'image',
+        source: { type: 'base64', media_type: imageMime, data: imageData }
+      }];
+    } else if (image) {
+      // Single base64 image (in-app direct scan)
+      imageBlocks = [{
+        type: 'image',
+        source: { type: 'base64', media_type: mimeType || 'image/jpeg', data: image }
+      }];
+    } else {
+      return res.status(400).json({ error: 'Provide image (base64), images (array), or imageUrl' });
     }
 
-    if (!imageData) return res.status(400).json({ error: 'Provide either image (base64) or imageUrl' });
+    const multiPhotoNote = imageBlocks.length > 1
+      ? `There are ${imageBlocks.length} photos — they are all pages/screenshots of the SAME recipe. Combine them into one complete recipe JSON.`
+      : 'Extract the recipe from this image.';
 
-    const prompt = `You are extracting a recipe from the image. Output ONLY a single JSON object — no markdown, no explanation, no code block.
+    const prompt = `You are extracting a recipe from the image${imageBlocks.length > 1 ? 's' : ''}. ${multiPhotoNote} Output ONLY a single JSON object — no markdown, no explanation, no code block.
 
 Use exactly this structure:
 {
@@ -78,7 +101,7 @@ Rules:
 - "quantity" must always be a string (e.g. "2/3", "1", "2-3"), never a number
 - Do NOT scale, convert, round, or split ingredient quantities — preserve exactly as written
 - If servings not shown, set "servings": "unspecified"
-- confidence values are integers 0–100 reflecting how clearly each field was readable in the image
+- confidence values are integers 0–100 reflecting how clearly each field was readable in the image(s)
 - Output raw JSON only.`;
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -94,10 +117,7 @@ Rules:
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: imageMime, data: imageData }
-            },
+            ...imageBlocks,
             { type: 'text', text: prompt }
           ]
         }]
