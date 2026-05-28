@@ -550,6 +550,7 @@ a:hover{text-decoration:underline}
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary btn-sm" onclick="printRecipe()">🖨️ Print</button>
         <button class="btn btn-secondary btn-sm" onclick="editCurrentRecipe()">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCurrentRecipe()">🗑️ Delete</button>
         <button class="modal-close" onclick="closeModal('modal-recipe')">✕</button>
       </div>
     </div>
@@ -1989,6 +1990,18 @@ function editCurrentRecipe() {
   openAddRecipe(currentViewingRecipeId);
 }
 
+function deleteCurrentRecipe() {
+  const r = getRecipeById(currentViewingRecipeId);
+  if (!r) return;
+  if (!confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
+  appData.recipes = appData.recipes.filter(x => x.id !== currentViewingRecipeId);
+  sbDeleteRecipe(currentViewingRecipeId);
+  persistToSession();
+  closeModal('modal-recipe');
+  renderLibrary();
+  showToast(`"${r.name}" deleted.`, 'success');
+}
+
 function printRecipe() {
   document.getElementById('modal-recipe').classList.add('printing');
   window.print();
@@ -2611,21 +2624,20 @@ function generateExportList(tripFilter) {
   const mealTypes = ['dinner','lunch','breakfast'];
   plan.days.forEach(day => {
     mealTypes.forEach(mt => {
-      const rid = day[mt];
-      if (!rid) return;
-      const recipe = appData.recipes.find(r => r.id === rid);
-      if (!recipe) return;
-      const batches = Math.max(1, parseInt(day[mt + 'Batches']) || 1);
-      (recipe.ingredients || []).forEach(ing => {
-        if (isStaple(ing.name)) return;
-        const scaledQty = multiplyQuantity(String(ing.quantity || ''), batches);
-        const key = (ing.name || '').toLowerCase().trim();
-        const unit = (ing.unit || '').trim();
-        const trip = (ing.freshness === 'short-shelf') ? agg2 : agg1;
-        if (!trip[key]) {
-          trip[key] = { name: ing.name, unit, quantities: [], category: ing.category || 'Other' };
-        }
-        if (scaledQty) trip[key].quantities.push(scaledQty);
+      getMeals(day, mt).forEach(({id: rid, batches}) => {
+        const recipe = appData.recipes.find(r => r.id === rid);
+        if (!recipe) return;
+        (recipe.ingredients || []).forEach(ing => {
+          if (isStaple(ing.name)) return;
+          const scaledQty = multiplyQuantity(String(ing.quantity || ''), batches);
+          const key = (ing.name || '').toLowerCase().trim();
+          const unit = (ing.unit || '').trim();
+          const trip = (ing.freshness === 'short-shelf') ? agg2 : agg1;
+          if (!trip[key]) {
+            trip[key] = { name: ing.name, unit, quantities: [], category: ing.category || 'Other' };
+          }
+          if (scaledQty) trip[key].quantities.push(scaledQty);
+        });
       });
     });
   });
