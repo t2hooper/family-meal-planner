@@ -2823,18 +2823,50 @@ function handleScanFile(event) {
   document.getElementById('scan-status').style.color = 'var(--gray-mid)';
 
   // Append to whatever is already selected so photos accumulate across taps,
-  // preserving the order they were added in.
+  // preserving the order they were added in. Each photo is downscaled and
+  // re-encoded as JPEG before storage so multi-photo payloads stay under
+  // Vercel's ~4.5MB serverless limit (raw iPhone photos are several MB each).
   const slot = _scanImages.length;
   let loaded = 0;
   newFiles.forEach((file, idx) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      _scanImages[slot + idx] = e.target.result;
+    _downscaleImage(file).then(dataUrl => {
+      _scanImages[slot + idx] = dataUrl;
+    }).catch(() => {
+      _scanImages[slot + idx] = null; // skip unreadable file
+    }).finally(() => {
       loaded++;
       if (loaded === newFiles.length) {
         _scanImages = _scanImages.filter(Boolean); // close any gaps
         _renderScanPreviews();
       }
+    });
+  });
+}
+
+// Resize an image File so its longest edge is <= maxEdge, re-encode as JPEG.
+// Keeps each photo small enough that several can be sent in one request.
+function _downscaleImage(file, maxEdge = 1568, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (Math.max(width, height) > maxEdge) {
+          const scale = maxEdge / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
@@ -2885,6 +2917,18 @@ async function runScan() {
   if (!_scanImages.length && !_scanImageSrc) return;
   const btn    = document.getElementById('scan-btn');
   const status = document.getElementById('scan-status');
+
+  // Guard against Vercel's ~4.5MB serverless payload limit. base64 is ~33%
+  // larger than the raw bytes it encodes, so estimate the decoded size.
+  if (_scanImages.length) {
+    const bytes = _scanImages.reduce((sum, d) => sum + Math.ceil((d.split(',')[1] || '').length * 0.75), 0);
+    if (bytes > 4_000_000) {
+      status.textContent = `✗ These ${_scanImages.length} photos are too large to send together (${(bytes/1e6).toFixed(1)}MB). Remove one or two and try again.`;
+      status.style.color = 'var(--red)';
+      return;
+    }
+  }
+
   btn.disabled = true;
   btn.textContent = '⏳ Scanning…';
   const n = _scanImages.length;
