@@ -277,7 +277,9 @@ a:hover{text-decoration:underline}
 .scan-drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 #scan-preview{width:100%;max-height:200px;object-fit:contain;border-radius:6px;border:1px solid var(--border);margin-top:12px;display:none}
 .scan-previews-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;justify-content:center}
-.scan-previews-grid img{height:90px;width:auto;max-width:120px;object-fit:cover;border-radius:5px;border:2px solid var(--green);background:var(--gray-bg)}
+.scan-preview-item{position:relative;display:inline-block}
+.scan-preview-item img{height:90px;width:auto;max-width:120px;object-fit:cover;border-radius:5px;border:2px solid var(--green);background:var(--gray-bg);display:block}
+.scan-preview-remove{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.3);padding:0}
 .scan-photo-count{font-size:11px;font-weight:700;color:var(--green);margin-top:4px;text-align:center}
 .conf-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;flex-shrink:0;vertical-align:middle}
 .conf-dot-high{background:#4CAF50}
@@ -2808,39 +2810,75 @@ let _pendingQueueId = null; // pending_recipes.id if we arrived from the iOS que
 let _scanSource   = { type: 'scan', value: null }; // source recorded when validation modal opens
 
 function handleScanFile(event) {
-  const files = Array.from(event.target.files || []);
-  if (!files.length) return;
-  _scanImages = [];
-  const previewsEl = document.getElementById('scan-previews');
-  previewsEl.innerHTML = '';
+  const newFiles = Array.from(event.target.files || []);
+  // Reset the input immediately so picking the same file again — or adding
+  // one more photo on a later tap — still fires onchange. (iOS often returns
+  // a single image per tap from the camera roll.)
+  event.target.value = '';
+  if (!newFiles.length) return;
+
   document.getElementById('scan-drop-label').style.display = 'none';
   document.getElementById('scan-btn').disabled = true;
   document.getElementById('scan-status').textContent = 'Loading photos…';
   document.getElementById('scan-status').style.color = 'var(--gray-mid)';
 
+  // Append to whatever is already selected so photos accumulate across taps,
+  // preserving the order they were added in.
+  const slot = _scanImages.length;
   let loaded = 0;
-  files.forEach((file, idx) => {
+  newFiles.forEach((file, idx) => {
     const reader = new FileReader();
     reader.onload = e => {
-      _scanImages[idx] = e.target.result; // preserve order
-      const img = document.createElement('img');
-      img.src = e.target.result;
-      img.title = file.name;
-      previewsEl.appendChild(img);
+      _scanImages[slot + idx] = e.target.result;
       loaded++;
-      if (loaded === files.length) {
-        // All loaded — filter out any gaps
-        _scanImages = _scanImages.filter(Boolean);
-        const n = _scanImages.length;
-        document.getElementById('scan-btn').disabled = false;
-        document.getElementById('scan-status').textContent =
-          n === 1 ? 'Photo ready — tap "Scan Recipe" to extract.'
-                  : `${n} photos ready — Claude will combine them into one recipe.`;
-        document.getElementById('scan-status').style.color = 'var(--gray-mid)';
+      if (loaded === newFiles.length) {
+        _scanImages = _scanImages.filter(Boolean); // close any gaps
+        _renderScanPreviews();
       }
     };
     reader.readAsDataURL(file);
   });
+}
+
+function _renderScanPreviews() {
+  const previewsEl = document.getElementById('scan-previews');
+  previewsEl.innerHTML = '';
+  _scanImages.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'scan-preview-item';
+    const img = document.createElement('img');
+    img.src = src;
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'scan-preview-remove';
+    rm.textContent = '✕';
+    rm.title = 'Remove this photo';
+    rm.onclick = ev => { ev.stopPropagation(); _removeScanImage(i); };
+    wrap.appendChild(img);
+    wrap.appendChild(rm);
+    previewsEl.appendChild(wrap);
+  });
+
+  const n = _scanImages.length;
+  const btn = document.getElementById('scan-btn');
+  const status = document.getElementById('scan-status');
+  if (n === 0) {
+    document.getElementById('scan-drop-label').style.display = '';
+    btn.disabled = true;
+    status.textContent = 'Choose a photo to get started.';
+  } else {
+    document.getElementById('scan-drop-label').style.display = 'none';
+    btn.disabled = false;
+    status.textContent = n === 1
+      ? 'Photo ready — tap "Scan Recipe", or tap the drop zone again to add more.'
+      : `${n} photos ready — Claude will combine them into one recipe. Tap the drop zone to add more.`;
+  }
+  status.style.color = 'var(--gray-mid)';
+}
+
+function _removeScanImage(i) {
+  _scanImages.splice(i, 1);
+  _renderScanPreviews();
 }
 
 async function runScan() {
