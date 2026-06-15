@@ -328,6 +328,10 @@ a:hover{text-decoration:underline}
 /* ── NIGHT PREP WARNING ── */
 .prep-warn{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#B71C1C;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle}
 .none-meal-slot{background:var(--gray-bg);border:1px dashed var(--border);border-radius:6px;padding:8px 10px;text-align:center;font-size:11px;color:var(--gray-light);font-style:italic}
+.night-type-row{display:flex;align-items:center;gap:5px;margin-bottom:6px}
+.night-type-cap{font-size:9px;font-weight:700;color:var(--gray-light);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.night-type-select{flex:1;min-width:0;font-size:10px;font-weight:600;color:var(--gray-mid);background:#fff;border:1px solid var(--border);border-radius:4px;padding:2px 4px;cursor:pointer}
+.night-type-select.overridden{border-color:var(--orange);color:var(--orange);background:var(--orange-bg)}
 
 /* ── PRINT STYLES ── */
 @media print {
@@ -1542,6 +1546,28 @@ function getMeals(day, mealType) {
   return [];
 }
 
+// ── Night-prep type (per-week override → settings default) ────────
+// Each day may carry an explicit override in day.nightPrep ('full'|'quick'|'none').
+// When absent, fall back to the standard set in Settings for that day-of-week.
+const NIGHT_TYPE_LABELS = { full: 'Full prep', quick: 'Quick (under 30m)', none: 'Eat out / leftovers' };
+function settingsNightType(day) {
+  const dow = new Date(day.date + 'T00:00:00').getDay();
+  return (appData.settings.nightPrep || {})[dow] || 'full';
+}
+function getNightType(day) {
+  return day.nightPrep || settingsNightType(day);
+}
+function setNightType(dk, value) {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === dk);
+  if (!day) return;
+  if (value === '') delete day.nightPrep;   // revert to settings default
+  else day.nightPrep = value;
+  persistToSession();
+  sbSaveWeekPlan(plan);
+  renderWeekly();
+}
+
 // ── Non-recipe grocery items attached to a meal slot ──────────────
 // Stored per day as day.dinnerItems / day.lunchItems / day.breakfastItems,
 // each an array of { name, quantity, unit, storeSection, freshness }.
@@ -1614,10 +1640,8 @@ function clearMealExtra(dateStr, mealType, index) {
 function isWeekComplete(weekStartDate) {
   const plan = getWeekPlan(weekStartDate);
   if (!plan) return false;
-  const np = appData.settings.nightPrep || {};
   return plan.days.every(d => {
-    const dow = new Date(d.date + 'T00:00:00').getDay();
-    if ((np[dow] || 'full') === 'none') return true; // no meal needed
+    if (getNightType(d) === 'none') return true; // no meal needed
     return getMeals(d, 'dinner').length > 0;
   });
 }
@@ -1768,11 +1792,7 @@ function renderWeekly() {
     `${formatDate(ws)} – ${formatDate(we)}, ${we.getFullYear()}`;
 
   const plan = ensureWeekPlan(ws);
-  const nightPrep = appData.settings.nightPrep || {};
-  const needsDinner = d => {
-    const dow = new Date(d.date + 'T00:00:00').getDay();
-    return (nightPrep[dow] || 'full') !== 'none';
-  };
+  const needsDinner = d => getNightType(d) !== 'none';
   const complete = plan.days.filter(needsDinner).every(d => getMeals(d, 'dinner').length > 0);
   const banner = document.getElementById('week-banner');
   if (!complete) {
@@ -1794,8 +1814,7 @@ function renderWeekly() {
 
     const dinners = getMeals(day, 'dinner');
     const dk = dateKey(date);
-    const dayOfWeek = new Date(day.date + 'T00:00:00').getDay();
-    const nightType = (appData.settings.nightPrep || {})[dayOfWeek] || 'full';
+    const nightType = getNightType(day);
     const QUICK_THRESHOLD = 30;
 
     let dinnerHTML = '';
@@ -1875,6 +1894,15 @@ function renderWeekly() {
         </div>
         <div class="meal-slot">
           <div class="meal-slot-label required">Dinner</div>
+          <div class="night-type-row">
+            <span class="night-type-cap">This week:</span>
+            <select class="night-type-select${day.nightPrep ? ' overridden' : ''}" onchange="setNightType('${dk}', this.value)" onclick="event.stopPropagation()" title="Set the prep level for this day this week. Defaults to your Settings standard.">
+              <option value="" ${!day.nightPrep ? 'selected' : ''}>Auto · ${NIGHT_TYPE_LABELS[settingsNightType(day)]}</option>
+              <option value="full" ${day.nightPrep === 'full' ? 'selected' : ''}>Full prep</option>
+              <option value="quick" ${day.nightPrep === 'quick' ? 'selected' : ''}>Quick (under 30m)</option>
+              <option value="none" ${day.nightPrep === 'none' ? 'selected' : ''}>Eat out / leftovers</option>
+            </select>
+          </div>
           ${dinnerHTML}
         </div>
       </div>`;
@@ -2171,11 +2199,9 @@ function autoSuggestWeek() {
 
   // Assign to days (only empty slots, respecting night types)
   const updatedRecipes = [];
-  const nightPrep = appData.settings.nightPrep || {};
   let pickIdx = 0;
   plan.days.forEach(day => {
-    const dow = new Date(day.date + 'T00:00:00').getDay();
-    const nightType = nightPrep[dow] || 'full';
+    const nightType = getNightType(day);
     if (nightType === 'none') return; // skip — no meal needed
     if (getMeals(day, 'dinner').length > 0) return; // already assigned
 
@@ -2209,10 +2235,8 @@ function autoSuggestWeek() {
 
 function finalizeWeek() {
   const plan = ensureWeekPlan(currentWeekStart);
-  const np = appData.settings.nightPrep || {};
   const missing = plan.days.filter(d => {
-    const dow = new Date(d.date + 'T00:00:00').getDay();
-    return (np[dow] || 'full') !== 'none' && getMeals(d, 'dinner').length === 0;
+    return getNightType(d) !== 'none' && getMeals(d, 'dinner').length === 0;
   }).length;
   if (missing > 0) {
     showToast(`${missing} dinner${missing>1?'s':''} still need to be filled in.`, 'error'); return;
