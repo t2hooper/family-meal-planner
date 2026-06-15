@@ -102,8 +102,11 @@ a:hover{text-decoration:underline}
 .dinner-card.empty{background:var(--gray-bg);border:1px dashed var(--border);color:var(--gray-light);font-size:11px;display:flex;align-items:center;justify-content:center}
 .dinner-card .meal-name{font-size:12px;font-weight:700;color:var(--green);line-height:1.3;margin-bottom:3px}
 .dinner-card .meal-meta{font-size:10px;color:var(--gray-mid)}
-.dinner-card .meal-actions{display:flex;gap:4px;margin-top:5px}
-.meal-action-btn{background:rgba(255,255,255,0.7);border:1px solid var(--green-border);border-radius:3px;font-size:10px;padding:2px 6px;cursor:pointer;color:var(--green);font-weight:600}
+.dinner-card .meal-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.meal-action-btn{background:rgba(255,255,255,0.7);border:1px solid var(--green-border);border-radius:3px;font-size:10px;padding:2px 6px;cursor:pointer;color:var(--green);font-weight:600;white-space:nowrap}
+.extra-item-slot{background:var(--orange-bg);border:1px solid #FFCC80;border-radius:4px;padding:5px 7px;margin-bottom:4px;font-size:11px;color:#8a5a00;display:flex;align-items:center}
+.extra-item-slot .ex-remove{background:none;border:none;color:inherit;cursor:pointer;font-size:11px;margin-left:6px;flex-shrink:0}
+.add-item-link{display:inline-block;font-size:10px;color:var(--gray-mid);cursor:pointer;margin-top:3px;text-decoration:underline}
 .meal-action-btn:hover{background:#fff}
 .optional-meals{margin-top:6px}
 .optional-toggle{background:none;border:none;font-size:10px;color:var(--gray-light);cursor:pointer;padding:2px 0;text-align:left;width:100%}
@@ -568,6 +571,12 @@ a:hover{text-decoration:underline}
   </div>
 
   <div class="card settings-section">
+    <h3>Recipe Names <span style="font-size:11px;font-weight:400;color:var(--gray-light)">— tidy existing names so the main item sorts first</span></h3>
+    <p style="font-size:12px;color:var(--gray-mid);margin-bottom:12px">New recipes are auto-named with the primary meal item first (e.g. <em>Maple Salmon</em> → <em>Salmon, Maple</em>) and filler words removed. Run this to apply the same tidy-up to recipes already in your library. You'll see every proposed change and can deselect any before saving.</p>
+    <button class="btn btn-secondary" onclick="openTidyNames()">✨ Tidy Recipe Names…</button>
+  </div>
+
+  <div class="card settings-section">
     <h3>Data Management</h3>
     <p style="font-size:12px;color:var(--gray-mid);margin-bottom:12px">All changes are <strong>automatically saved to Supabase</strong> in real time. The <strong>☁️ Synced</strong> indicator (top-right) confirms your last save. Use <strong>⬇ Backup</strong> to download a local JSON copy anytime.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -584,11 +593,11 @@ a:hover{text-decoration:underline}
   <div class="modal" style="max-width:780px">
     <div class="modal-header">
       <span class="modal-title" id="modal-recipe-title">Recipe</span>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-danger btn-sm" onclick="deleteCurrentRecipe()">🗑️ Delete Recipe</button>
         <button class="btn btn-secondary btn-sm" onclick="printRecipe()">🖨️ Print</button>
         <button class="btn btn-secondary btn-sm" onclick="editCurrentRecipe()">✏️ Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteCurrentRecipe()">🗑️ Delete</button>
-        <button class="modal-close" onclick="closeModal('modal-recipe')">✕</button>
+        <button class="modal-close" onclick="closeModal('modal-recipe')" style="margin-left:8px">✕</button>
       </div>
     </div>
     <div class="modal-body" id="modal-recipe-body"></div>
@@ -867,16 +876,129 @@ CRITICAL PARSING RULES (DO NOT VIOLATE):
 
 <!-- ══ PICK MEAL MODAL ════════════════════════════ -->
 <div id="modal-pick-meal" class="modal-overlay">
-  <div class="modal" style="max-width:600px">
+  <div class="modal" style="max-width:660px">
     <div class="modal-header">
       <span class="modal-title" id="pick-meal-title">Choose a Meal</span>
       <button class="modal-close" onclick="closeModal('modal-pick-meal')">✕</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:12px">
-        <input class="filter-search" id="pick-search" placeholder="Search recipes…" oninput="renderPickList()" style="width:100%">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px">
+        <input class="filter-search" id="pick-search" placeholder="Search…" oninput="renderPickList()" style="flex:1;min-width:150px">
+        <select class="filter-select" id="pick-course" onchange="renderPickList()">
+          <option value="">All courses</option>
+          <option value="breakfast">Breakfast</option>
+          <option value="lunch">Lunch</option>
+          <option value="dinner">Dinner</option>
+          <option value="side">Sides</option>
+          <option value="dessert">Desserts</option>
+        </select>
+        <select class="filter-select" id="pick-protein" onchange="renderPickList()">
+          <option value="">All proteins</option>
+          <option>chicken</option><option>beef</option><option>pork</option>
+          <option>fish</option><option>seafood</option><option>vegetarian</option><option>eggs</option><option>mixed</option>
+        </select>
+        <select class="filter-select" id="pick-cuisine" onchange="renderPickList()">
+          <option value="">All cuisines</option>
+          <option>italian</option><option>mexican</option><option>american</option>
+          <option>asian</option><option>mediterranean</option><option>other</option>
+        </select>
+        <select class="filter-select" id="pick-time" onchange="renderPickList()">
+          <option value="">Any time</option>
+          <option value="30">Under 30 min</option>
+          <option value="60">Under 60 min</option>
+          <option value="61">60+ min</option>
+        </select>
+        <select class="filter-select" id="pick-tier" onchange="renderPickList()">
+          <option value="">All tiers</option>
+          <option value="A">Tier A</option>
+          <option value="B">Tier B</option>
+          <option value="C">Tier C</option>
+        </select>
+        <select class="filter-select" id="pick-sort" onchange="renderPickList()">
+          <option value="alpha">A–Z</option>
+          <option value="freq">Most Made</option>
+          <option value="oldest">Least Recently Made</option>
+          <option value="newest">Date Added</option>
+          <option value="time">Total Time</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="clearPickFilters()">Clear</button>
       </div>
-      <div id="pick-list" style="max-height:400px;overflow-y:auto"></div>
+      <div id="pick-count" style="font-size:11px;color:var(--gray-mid);margin:6px 2px 8px"></div>
+      <div id="pick-list" style="max-height:46vh;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD GROCERY ITEM MODAL (non-recipe) ═════════ -->
+<div id="modal-add-item" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-add-item')">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Add Grocery Item</span>
+      <button class="modal-close" onclick="closeModal('modal-add-item')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--gray-mid);margin:0 0 14px">
+        Add a non-recipe item (fruit, bread, chips, milk…) to <strong id="add-item-meal-label"></strong>.
+        It needs no recipe but will be added to your grocery list.
+      </p>
+      <label class="form-label" style="display:block;font-size:11px;font-weight:700;color:var(--gray-mid);margin-bottom:3px">Item name</label>
+      <input id="item-name" class="form-input" placeholder="e.g. Bananas, Tortilla chips, Sliced bread"
+        style="width:100%;border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;margin-bottom:12px"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();saveMealItem();}">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1">
+          <label class="form-label" style="display:block;font-size:11px;font-weight:700;color:var(--gray-mid);margin-bottom:3px">Quantity</label>
+          <input id="item-qty" class="form-input" placeholder="2"
+            style="width:100%;border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px">
+        </div>
+        <div style="flex:1">
+          <label class="form-label" style="display:block;font-size:11px;font-weight:700;color:var(--gray-mid);margin-bottom:3px">Unit (optional)</label>
+          <input id="item-unit" class="form-input" placeholder="bunch, bag, loaf…"
+            style="width:100%;border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px">
+        </div>
+      </div>
+      <label class="form-label" style="display:block;font-size:11px;font-weight:700;color:var(--gray-mid);margin-bottom:3px">Grocery section</label>
+      <select id="item-section" class="form-input"
+        style="width:100%;border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;margin-bottom:12px">
+        <option value="produce">🥦 Produce</option>
+        <option value="meat">🥩 Meat &amp; Seafood</option>
+        <option value="dairy">🧀 Dairy &amp; Eggs</option>
+        <option value="frozen">❄️ Frozen</option>
+        <option value="pantry">🥫 Pantry &amp; Dry Goods</option>
+        <option value="bakery">🍞 Bakery</option>
+        <option value="other">📦 Other</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gray-mid);margin-bottom:18px;cursor:pointer">
+        <input type="checkbox" id="item-shortshelf"> Short shelf-life — buy on the 2nd trip (Wed/Thu) if used later in the week
+      </label>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-secondary" onclick="closeModal('modal-add-item')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMealItem()">+ Add to Meal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TIDY RECIPE NAMES MODAL ═════════════════════ -->
+<div id="modal-tidy-names" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-tidy-names')">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <span class="modal-title">Tidy Recipe Names</span>
+      <button class="modal-close" onclick="closeModal('modal-tidy-names')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--gray-mid);margin:0 0 12px">
+        Review the proposed changes below. Uncheck any you want to keep as-is, then apply.
+        Nothing is saved until you click <strong>Apply</strong>.
+      </p>
+      <div id="tidy-names-list" style="max-height:50vh;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:8px">
+        <label style="font-size:12px;color:var(--gray-mid);cursor:pointer"><input type="checkbox" id="tidy-select-all" checked onchange="toggleTidyAll(this.checked)"> Select all</label>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="closeModal('modal-tidy-names')">Cancel</button>
+          <button class="btn btn-primary" id="tidy-apply-btn" onclick="applyTidyNames()">Apply Selected</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1210,15 +1332,150 @@ function formatDateFull(date) {
 }
 
 function isStaple(ingredientName) {
-  const name = ingredientName.toLowerCase().trim();
+  const name = (ingredientName || '').toLowerCase().trim();
+  if (!name) return false;
   return appData.pantryStaples.some(s => {
-    const staple = s.toLowerCase().trim();
-    // Match exact, or ingredient name contains the staple word, or staple word contains ingredient name
-    // e.g. "butter" matches "unsalted butter", "butter" also matches "butter, softened"
-    return name === staple
-      || name.includes(staple)
-      || staple.includes(name);
+    const staple = (s || '').toLowerCase().trim();
+    if (!staple) return false;
+    if (name === staple) return true;
+    // The staple must appear as a whole word/phrase WITHIN the ingredient name.
+    // e.g. staple "butter" matches "unsalted butter" / "butter, softened".
+    // We deliberately do NOT match the other direction (staple contains ingredient),
+    // which wrongly suppressed items like "tomato" because the staple "tomato paste"
+    // or "diced tomatoes" contains the word "tomato".
+    const esc = staple.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('(^|[^a-z])' + esc + '([^a-z]|$)', 'i');
+    return re.test(name);
   });
+}
+
+// Map any store-section value to one of the known grocery sections so an item
+// is never silently dropped from the list. Recipes imported via Claude/URL can
+// arrive with capitalized or synonym sections (e.g. "Produce", "vegetables");
+// without this, buildPanel's exact-match section filter hid those items
+// (this is why "romaine lettuce" never showed on the list).
+const GROCERY_SECTIONS = ['produce','meat','dairy','frozen','pantry','bakery','other'];
+function normalizeSection(sec) {
+  const s = (sec || '').toLowerCase().trim();
+  if (GROCERY_SECTIONS.includes(s)) return s;
+  const map = {
+    vegetable:'produce', vegetables:'produce', veggies:'produce', veg:'produce',
+    fruit:'produce', fruits:'produce', 'fresh produce':'produce',
+    seafood:'meat', fish:'meat', protein:'meat', 'meat & seafood':'meat', 'meat and seafood':'meat', deli:'meat',
+    egg:'dairy', eggs:'dairy', cheese:'dairy', 'dairy & eggs':'dairy', 'dairy and eggs':'dairy',
+    bread:'bakery', breads:'bakery', 'bakery & bread':'bakery',
+    spice:'pantry', spices:'pantry', condiment:'pantry', condiments:'pantry',
+    canned:'pantry', 'dry goods':'pantry', 'pantry & dry goods':'pantry', baking:'pantry', grains:'pantry',
+    beverage:'other', beverages:'other', drinks:'other', snacks:'other', snack:'other'
+  };
+  return map[s] || 'other';
+}
+
+// ── Recipe name normalization ─────────────────────────────────────
+// New recipes are auto-named so the primary meal item leads, for easy
+// alphabetical scanning. Filler words are dropped and, when the primary
+// item isn't already first, the name is inverted comma-index style:
+//   "Maple Salmon"                              -> "Salmon, Maple"
+//   "Butternut Risotto"                         -> "Risotto, Butternut"
+//   "BBQ Salmon Bowls with Mango Avocado Salsa" -> "Salmon Bowls, BBQ with Mango Avocado Salsa"
+//   "Chicken Yakisoba"                          -> "Chicken Yakisoba" (already leads with the protein)
+// Idempotent: re-running on an already-tidied name leaves it unchanged.
+const NAME_FILLER = new Set(['the','a','an','best','world','worlds',"world's",'ultimate','perfect',
+  'easy','easiest','simple','simplest','quick','quickest','homemade','classic','amazing','delicious',
+  'famous','favorite','favourite','super','authentic','original','real','ever','my','our','incredible',
+  'awesome','epic','tasty','yummy','crazy','insanely','seriously','absolute','recipe']);
+const NAME_PRIMARY = new Set(['salmon','tuna','cod','halibut','tilapia','trout','mahi','snapper','bass','fish',
+  'shrimp','prawn','prawns','crab','lobster','scallop','scallops','clam','clams','mussels','oyster','oysters','calamari',
+  'chicken','turkey','duck','beef','steak','brisket','meatloaf','meatball','meatballs','burger','burgers',
+  'pork','bacon','sausage','sausages','ham','lamb','veal','ribs','chop','chops',
+  'tofu','tempeh','seitan','egg','eggs','omelet','omelette','frittata','quiche',
+  'risotto','pasta','spaghetti','lasagna','lasagne','linguine','fettuccine','penne','macaroni','gnocchi','ravioli','noodle','noodles','ramen','udon','yakisoba','pho',
+  'pizza','calzone','taco','tacos','burrito','burritos','quesadilla','quesadillas','enchilada','enchiladas','fajita','fajitas','nachos','tostada',
+  'soup','stew','chili','chowder','gumbo','bisque','curry','dal','dahl',
+  'salad','sandwich','sandwiches','wrap','wraps','panini','melt','melts','sub','gyro','kebab','kebabs','skewer','skewers',
+  'bowl','bowls','casserole','skillet','stirfry','stir-fry','paella','jambalaya','pilaf',
+  'pancake','pancakes','waffle','waffles','crepe','crepes','oatmeal','granola','parfait','smoothie',
+  'pie','potpie','cobbler','crumble']);
+const NAME_DISH = new Set(['bowl','bowls','salad','soup','stew','chili','chowder','curry','sandwich','sandwiches',
+  'wrap','wraps','taco','tacos','burrito','burritos','pizza','pasta','risotto','casserole','skillet','bake',
+  'melt','melts','burger','burgers','pie','noodles','ramen','stir-fry','stirfry','kebabs','skewers','parfait','quiche','frittata']);
+const NAME_CONNECTOR = new Set(['with','and','in','on','over','of','for','&','la','le']);
+
+function _nameKey(t) {
+  return t.toLowerCase().replace(/^[^a-z0-9'&]+|[^a-z0-9'&]+$/g, '');
+}
+
+function normalizeRecipeName(rawName) {
+  const original = String(rawName || '').trim();
+  if (!original) return original;
+  const tokens = original.split(/\s+/).map(t => ({ raw: t, key: _nameKey(t) }));
+  // Drop filler words (but never strip everything away)
+  let kept = tokens.filter(t => t.key && !NAME_FILLER.has(t.key));
+  if (kept.length === 0) kept = tokens.slice();
+  // First word that is a primary meal item
+  const pi = kept.findIndex(t => NAME_PRIMARY.has(t.key));
+  let result;
+  if (pi <= 0) {
+    // Already leads with the primary item (or none found) — keep order
+    result = kept.map(t => t.raw).join(' ');
+  } else {
+    const headIdx = [pi];
+    if (kept[pi + 1] && NAME_DISH.has(kept[pi + 1].key)) headIdx.push(pi + 1);
+    const head = headIdx.map(i => kept[i].raw).join(' ');
+    const rest = kept.filter((_, i) => !headIdx.includes(i)).map(t => t.raw);
+    if (rest.length === 0) result = head;
+    else if (NAME_CONNECTOR.has(_nameKey(rest[0]))) result = head + ' ' + rest.join(' ');
+    else result = head + ', ' + rest.join(' ');
+  }
+  result = result.replace(/\s+/g, ' ').replace(/\s+,/g, ',').trim();
+  if (result) result = result.charAt(0).toUpperCase() + result.slice(1);
+  return result || original;
+}
+
+// Bulk tidy of existing library names — preview + approve before saving.
+let _tidyProposals = [];
+function openTidyNames() {
+  _tidyProposals = (appData.recipes || [])
+    .map(r => ({ id: r.id, old: r.name || '', proposed: normalizeRecipeName(r.name || '') }))
+    .filter(p => p.proposed && p.proposed !== p.old);
+  const list = document.getElementById('tidy-names-list');
+  const applyBtn = document.getElementById('tidy-apply-btn');
+  const selAll = document.getElementById('tidy-select-all');
+  if (_tidyProposals.length === 0) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--gray-mid);font-size:13px">🎉 All your recipe names are already tidy — nothing to change.</div>';
+    applyBtn.disabled = true; selAll.disabled = true;
+  } else {
+    applyBtn.disabled = false; selAll.disabled = false; selAll.checked = true;
+    list.innerHTML = _tidyProposals.map((p, i) => `
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px">
+        <input type="checkbox" class="tidy-cb" data-i="${i}" checked style="margin-top:3px">
+        <span style="flex:1">
+          <span style="color:var(--gray-light);text-decoration:line-through">${escapeAttr(p.old)}</span>
+          <span style="margin:0 6px;color:var(--gray-light)">→</span>
+          <strong style="color:var(--green)">${escapeAttr(p.proposed)}</strong>
+        </span>
+      </label>`).join('');
+  }
+  openModal('modal-tidy-names');
+}
+
+function toggleTidyAll(checked) {
+  document.querySelectorAll('#tidy-names-list .tidy-cb').forEach(cb => { cb.checked = checked; });
+}
+
+function applyTidyNames() {
+  const idxs = Array.from(document.querySelectorAll('#tidy-names-list .tidy-cb:checked')).map(cb => parseInt(cb.dataset.i));
+  let n = 0;
+  idxs.forEach(i => {
+    const p = _tidyProposals[i];
+    if (!p) return;
+    const r = appData.recipes.find(rr => rr.id === p.id);
+    if (r && r.name !== p.proposed) { r.name = p.proposed; sbSaveRecipe(r); n++; }
+  });
+  persistToSession();
+  closeModal('modal-tidy-names');
+  if (typeof renderLibrary === 'function') renderLibrary();
+  showToast(n ? `Renamed ${n} recipe${n > 1 ? 's' : ''}.` : 'No changes applied.', n ? 'success' : '');
 }
 
 // Multiply a quantity string by a batch count, preserving fractions/ranges as strings
@@ -1283,6 +1540,75 @@ function getMeals(day, mealType) {
   if (day[key] && day[key].length > 0) return day[key];
   if (day[mealType]) return [{ id: day[mealType], batches: day[mealType + 'Batches'] || 1 }];
   return [];
+}
+
+// ── Non-recipe grocery items attached to a meal slot ──────────────
+// Stored per day as day.dinnerItems / day.lunchItems / day.breakfastItems,
+// each an array of { name, quantity, unit, storeSection, freshness }.
+function getMealExtras(day, mealType) {
+  return day[mealType + 'Items'] || [];
+}
+
+function renderMealExtras(day, dk, mealType) {
+  const extras = getMealExtras(day, mealType);
+  let html = extras.map((it, i) => {
+    const qty = [it.quantity, it.unit].filter(Boolean).join(' ');
+    return `<div class="extra-item-slot"><span style="flex:1">🛒 ${escapeAttr(it.name)}${qty ? ` <span style="opacity:.7">(${escapeAttr(qty)})</span>` : ''}</span><button class="ex-remove" title="Remove item" onclick="event.stopPropagation();clearMealExtra('${dk}','${mealType}',${i})">✕</button></div>`;
+  }).join('');
+  html += `<div class="add-item-link" onclick="event.stopPropagation();openAddItem('${dk}','${mealType}')">+ Add grocery item</div>`;
+  return html;
+}
+
+function escapeAttr(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+let currentItemDay = null, currentItemMealType = null;
+
+function openAddItem(dateStr, mealType) {
+  currentItemDay = dateStr;
+  currentItemMealType = mealType;
+  document.getElementById('add-item-meal-label').textContent =
+    `${capitalise(mealType)} — ${formatDate(new Date(dateStr+'T00:00:00'))}`;
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-qty').value = '';
+  document.getElementById('item-unit').value = '';
+  document.getElementById('item-section').value = 'produce';
+  document.getElementById('item-shortshelf').checked = false;
+  openModal('modal-add-item');
+  setTimeout(() => document.getElementById('item-name').focus(), 50);
+}
+
+function saveMealItem() {
+  const name = document.getElementById('item-name').value.trim();
+  if (!name) { document.getElementById('item-name').focus(); return; }
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === currentItemDay);
+  if (!day) return;
+  const key = currentItemMealType + 'Items';
+  if (!day[key]) day[key] = [];
+  day[key].push({
+    name,
+    quantity: document.getElementById('item-qty').value.trim(),
+    unit: document.getElementById('item-unit').value.trim(),
+    storeSection: document.getElementById('item-section').value,
+    freshness: document.getElementById('item-shortshelf').checked ? 'short-shelf' : 'normal'
+  });
+  persistToSession();
+  sbSaveWeekPlan(plan);
+  closeModal('modal-add-item');
+  renderWeekly();
+}
+
+function clearMealExtra(dateStr, mealType, index) {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const day = plan.days.find(d => d.date === dateStr);
+  if (day && day[mealType + 'Items']) {
+    day[mealType + 'Items'].splice(index, 1);
+  }
+  persistToSession();
+  sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
+  renderWeekly();
 }
 
 function isWeekComplete(weekStartDate) {
@@ -1500,28 +1826,32 @@ function renderWeekly() {
                 style="width:42px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;font-size:11px;text-align:center"
                 onclick="event.stopPropagation()"
                 onchange="event.stopPropagation();setBatches('${dk}','dinner','${id}',this.value)">
-              <button class="meal-action-btn" style="margin-left:auto" onclick="event.stopPropagation();pickMeal('${dk}','dinner','${id}')">↔ Swap</button>
-              <button class="meal-action-btn" onclick="event.stopPropagation();clearMealItem('${dk}','dinner','${id}')" style="color:var(--red)">✕</button>
+              <button class="meal-action-btn" onclick="event.stopPropagation();pickMeal('${dk}','dinner','${id}')">↔ Swap</button>
+              <button class="meal-action-btn" onclick="event.stopPropagation();clearMealItem('${dk}','dinner','${id}')" style="color:var(--red);border-color:#ef9a9a">✕ Remove</button>
             </div>
           </div>`;
       });
       dinnerHTML += `<div class="dinner-card empty" style="margin-top:4px;font-size:12px;padding:6px 10px" onclick="pickMeal('${dk}','dinner')">+ Add Another</div>`;
     }
+    dinnerHTML += renderMealExtras(day, dk, 'dinner');
 
     const lunches = getMeals(day, 'lunch');
     const breakfasts = getMeals(day, 'breakfast');
-    const hasOptional = lunches.length > 0 || breakfasts.length > 0;
+    const hasOptional = lunches.length > 0 || breakfasts.length > 0
+      || getMealExtras(day, 'breakfast').length > 0 || getMealExtras(day, 'lunch').length > 0;
 
     let breakfastHTML = breakfasts.map(({id}) => {
       const r = getRecipeById(id); if (!r) return '';
       return `<div class="optional-meal-slot filled" style="margin-bottom:2px;display:flex;align-items:center"><span onclick="openRecipe('${id}',1)" style="cursor:pointer;flex:1">${r.name}</span><button style="background:none;border:none;color:inherit;cursor:pointer;font-size:10px;margin-left:4px" onclick="event.stopPropagation();clearMealItem('${dk}','breakfast','${id}')">✕</button></div>`;
     }).join('');
+    breakfastHTML += renderMealExtras(day, dk, 'breakfast');
     breakfastHTML += `<div class="optional-meal-slot" style="${breakfasts.length?'font-size:11px;padding:3px 8px;margin-top:2px':''}" onclick="pickMeal('${dk}','breakfast')">+ Add</div>`;
 
     let lunchHTML = lunches.map(({id}) => {
       const r = getRecipeById(id); if (!r) return '';
       return `<div class="optional-meal-slot filled" style="margin-bottom:2px;display:flex;align-items:center"><span onclick="openRecipe('${id}',1)" style="cursor:pointer;flex:1">${r.name}</span><button style="background:none;border:none;color:inherit;cursor:pointer;font-size:10px;margin-left:4px" onclick="event.stopPropagation();clearMealItem('${dk}','lunch','${id}')">✕</button></div>`;
     }).join('');
+    lunchHTML += renderMealExtras(day, dk, 'lunch');
     lunchHTML += `<div class="optional-meal-slot" style="${lunches.length?'font-size:11px;padding:3px 8px;margin-top:2px':''}" onclick="pickMeal('${dk}','lunch')">+ Add</div>`;
 
     col.innerHTML = `
@@ -1530,11 +1860,7 @@ function renderWeekly() {
         <span class="day-date">${formatDate(date)}</span>
       </div>
       <div class="day-card-body">
-        <div class="meal-slot">
-          <div class="meal-slot-label required">Dinner</div>
-          ${dinnerHTML}
-        </div>
-        <div class="optional-meals">
+        <div class="optional-meals" style="margin-bottom:8px">
           <button class="optional-toggle" onclick="toggleOptional(this)">+ Breakfast &amp; Lunch ${hasOptional?'▴':'▾'}</button>
           <div class="optional-content ${hasOptional?'open':''}">
             <div class="meal-slot" style="margin-bottom:6px">
@@ -1546,6 +1872,10 @@ function renderWeekly() {
               ${lunchHTML}
             </div>
           </div>
+        </div>
+        <div class="meal-slot">
+          <div class="meal-slot-label required">Dinner</div>
+          ${dinnerHTML}
         </div>
       </div>`;
     grid.appendChild(col);
@@ -1604,21 +1934,72 @@ function pickMeal(dateStr, mealType, replaceId) {
   const action = replaceId ? 'Swap' : 'Add';
   document.getElementById('pick-meal-title').textContent =
     `${action} ${capitalise(mealType)} — ${formatDate(new Date(dateStr+'T00:00:00'))}`;
-  document.getElementById('pick-search').value = '';
+  // Reset all filters, then pre-filter Course to the meal slot that opened this dialog
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setVal('pick-search', '');
+  setVal('pick-course', ['breakfast','lunch','dinner'].includes(mealType) ? mealType : '');
+  setVal('pick-protein', '');
+  setVal('pick-cuisine', '');
+  setVal('pick-time', '');
+  setVal('pick-tier', '');
+  setVal('pick-sort', 'alpha');
   renderPickList();
   openModal('modal-pick-meal');
 }
 
+function clearPickFilters() {
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setVal('pick-search', '');
+  setVal('pick-protein', '');
+  setVal('pick-cuisine', '');
+  setVal('pick-time', '');
+  setVal('pick-tier', '');
+  setVal('pick-sort', 'alpha');
+  // Keep the meal pre-filter — this dialog is specific to one meal slot
+  setVal('pick-course', ['breakfast','lunch','dinner'].includes(currentPickMealType) ? currentPickMealType : '');
+  renderPickList();
+}
+
 function renderPickList() {
-  const search = document.getElementById('pick-search').value.toLowerCase();
+  const gv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  const search  = (gv('pick-search')||'').toLowerCase();
+  const course  = gv('pick-course');
+  const protein = gv('pick-protein');
+  const cuisine = gv('pick-cuisine');
+  const timeF   = gv('pick-time');
+  const tier    = gv('pick-tier');
+  const sort    = gv('pick-sort') || 'alpha';
+
   let recipes = appData.recipes.filter(r => {
-    if (search && !r.name.toLowerCase().includes(search)) return false;
+    if (search && !r.name.toLowerCase().includes(search) &&
+        !(r.tags||[]).some(t => t.toLowerCase().includes(search))) return false;
+    if (course && (r.course||'').toLowerCase() !== course) return false;
+    if (protein && r.protein !== protein) return false;
+    if (cuisine && r.cuisine !== cuisine) return false;
+    if (tier && getRecipeTier(r) !== tier) return false;
+    if (timeF) {
+      const total = (r.prepTime||0)+(r.cookTime||0);
+      if (timeF === '30' && total >= 30) return false;
+      if (timeF === '60' && total >= 60) return false;
+      if (timeF === '61' && total < 60) return false;
+    }
     return true;
   });
-  recipes.sort((a,b) => a.name.localeCompare(b.name));
+
+  recipes.sort((a,b) => {
+    if (sort === 'freq') return (b.frequency||0)-(a.frequency||0);
+    if (sort === 'oldest') return new Date(a.lastPlanned||0)-new Date(b.lastPlanned||0);
+    if (sort === 'newest') return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
+    if (sort === 'time') return ((a.prepTime||0)+(a.cookTime||0))-((b.prepTime||0)+(b.cookTime||0));
+    return a.name.localeCompare(b.name);
+  });
+
+  const countEl = document.getElementById('pick-count');
+  if (countEl) countEl.textContent = `${recipes.length} recipe${recipes.length!==1?'s':''}${course?` in ${capitalise(course)}`:''}`;
+
   const list = document.getElementById('pick-list');
   if (recipes.length === 0) {
-    list.innerHTML = '<div class="empty-state"><div class="icon">🍽️</div><p>No recipes found</p></div>';
+    list.innerHTML = '<div class="empty-state"><div class="icon">🍽️</div><p>No recipes match these filters</p><p style="font-size:11px;color:var(--gray-light)">Try Clear, or widen the course filter to “All courses”.</p></div>';
     return;
   }
   list.innerHTML = recipes.map(r => `
@@ -2292,7 +2673,7 @@ function saveRecipe() {
     }
   } else {
     const recipe = {
-      id: generateId(), name,
+      id: generateId(), name: normalizeRecipeName(name),
       prepTime: parseInt(document.getElementById('f-prep').value)||0,
       cookTime: parseInt(document.getElementById('f-cook').value)||0,
       servings: parseInt(document.getElementById('f-servings').value)||5,
@@ -2375,7 +2756,7 @@ function importFromClaude() {
                         sourceType==='file' ? document.getElementById('fc-source-file').value.trim() : null;
     const recipe = {
       id: generateId(),
-      name: raw.name || 'Untitled Recipe',
+      name: normalizeRecipeName(raw.name || 'Untitled Recipe'),
       servings: raw.servings || 5,
       prepTime: raw.prepTime || 0,
       cookTime: raw.cookTime || 0,
@@ -2458,10 +2839,31 @@ function renderGrocery() {
               : `${q1} + ${q2}`;
             if (!existing.meals.includes(r.name)) existing.meals.push(r.name);
           } else {
-            list.push({ name: ing.name, quantity: scaledQtyStr, unit: ing.unit||'', storeSection: ing.storeSection||'other', meals: [r.name], checked: false });
+            list.push({ name: ing.name, quantity: scaledQtyStr, unit: ing.unit||'', storeSection: normalizeSection(ing.storeSection), meals: [r.name], checked: false });
           }
         });
       }); // end getMeals forEach
+
+      // Non-recipe grocery items attached to this meal slot
+      getMealExtras(day, mealType).forEach(it => {
+        const nm = (it.name || '').trim();
+        if (!nm) return;
+        const isTrip2 = it.freshness === 'short-shelf' && trip2Days.includes(idx);
+        const list = isTrip2 ? trip2Items : trip1Items;
+        const unit = it.unit || '';
+        const qtyStr = String(it.quantity || '');
+        const existing = list.find(x => x.name.toLowerCase() === nm.toLowerCase() && x.unit === unit);
+        if (existing) {
+          const q1 = existing.quantity, q2 = qtyStr;
+          const n1 = parseFloat(q1), n2 = parseFloat(q2);
+          existing.quantity = (!isNaN(n1) && !isNaN(n2) && !q1.includes('/') && !q2.includes('/'))
+            ? String(n1 + n2)
+            : (q1 && q2 ? `${q1} + ${q2}` : (q1 || q2));
+          if (!existing.meals.includes('Added item')) existing.meals.push('Added item');
+        } else {
+          list.push({ name: nm, quantity: qtyStr, unit, storeSection: normalizeSection(it.storeSection), meals: ['Added item'], checked: false });
+        }
+      });
     }); // end mealType forEach
   }); // end days forEach
 
@@ -3153,7 +3555,7 @@ function approveScanFinal() {
 
   const recipe = {
     id: generateId(),
-    name:       g('name').value.trim() || 'Untitled Recipe',
+    name:       normalizeRecipeName(g('name').value.trim() || 'Untitled Recipe'),
     servings:   g('servings').value || _scanParsed.servings || 5,
     prepTime:   parseInt(g('prepTime').value)  || 0,
     cookTime:   parseInt(g('cookTime').value)  || 0,
