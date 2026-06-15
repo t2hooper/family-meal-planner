@@ -133,6 +133,9 @@ a:hover{text-decoration:underline}
 .view-toggle-btn:first-child{border-right:1px solid var(--border)}
 /* Tile view */
 .recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.library-group{margin-bottom:22px}
+.library-group-header{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid var(--green-bg)}
+.library-group-header .count{font-weight:500;color:var(--gray-light);text-transform:none;letter-spacing:0}
 .recipe-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .15s,transform .1s;box-shadow:0 1px 3px rgba(0,0,0,0.07)}
 .recipe-card:hover{box-shadow:0 4px 14px rgba(0,0,0,0.13);transform:translateY(-2px)}
 .recipe-card-photo{height:80px;background:var(--green-bg);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
@@ -288,9 +291,15 @@ a:hover{text-decoration:underline}
 
 /* ── SCAN VALIDATION MODAL ── */
 .scan-validate-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
-@media(max-width:680px){.scan-validate-layout{grid-template-columns:1fr}}
 .scan-photo-col img{width:100%;max-height:400px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:var(--gray-bg)}
 .scan-photo-col{position:sticky;top:0}
+/* On a single-column (narrow/phone) layout the sticky photo would stay pinned and cover the
+   extracted-data fields as they scroll up behind it. Drop sticky there so they stack cleanly. */
+@media(max-width:680px){
+  .scan-validate-layout{grid-template-columns:1fr}
+  .scan-photo-col{position:static}
+  .scan-photo-col img{max-height:300px}
+}
 .svf-row{margin-bottom:9px}
 .svf-label{font-size:11px;font-weight:700;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:4px;margin-bottom:3px}
 .svf-input{width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 9px;font-size:13px;color:var(--gray);background:#fff}
@@ -1887,12 +1896,11 @@ function renderLibrary() {
   const proteinIcon = {chicken:'🍗',beef:'🥩',pork:'🐷',fish:'🐟',seafood:'🦐',vegetarian:'🥦',eggs:'🥚',mixed:'🍲'};
 
   const container = document.getElementById('recipe-grid');
-  // Sync class in case view state is stale
-  container.className = libraryView === 'list' ? 'recipe-list' : 'recipe-grid';
+  // Container is now a wrapper holding one section per course group
+  container.className = 'library-grouped';
 
   if (recipes.length === 0) {
-    const span = libraryView === 'list' ? '' : 'style="grid-column:1/-1"';
-    container.innerHTML = `<div class="empty-state" ${span}>
+    container.innerHTML = `<div class="empty-state">
       <div class="icon">🍽️</div>
       <h3>${appData.recipes.length===0?'No recipes yet':'No recipes match these filters'}</h3>
       <p style="font-size:12px;margin-bottom:14px">${appData.recipes.length===0?'Add your first recipe using the button above, or use the "Add via Claude" tab to import one from a photo or website.':'Try clearing some filters.'}</p>
@@ -1901,52 +1909,79 @@ function renderLibrary() {
     return;
   }
 
-  if (libraryView === 'list') {
-    container.innerHTML = recipes.map(r => {
-      const total = (r.prepTime||0)+(r.cookTime||0);
-      const t = getRecipeTier(r);
-      const emoji = proteinIcon[r.protein||''] || '🍽️';
-      const iconHTML = r.photo
-        ? `<img src="${r.photo}" alt="${r.name}">`
-        : emoji;
-      return `
-      <div class="recipe-list-item" onclick="openRecipe('${r.id}')">
-        <div class="recipe-list-icon">${iconHTML}</div>
-        <div class="recipe-list-name">${r.name}</div>
-        <div class="recipe-list-tags">
+  // Render a single recipe as a tile card or list item
+  const renderCard = r => {
+    const total = (r.prepTime||0)+(r.cookTime||0);
+    const t = getRecipeTier(r);
+    const emoji = proteinIcon[r.protein||''] || '🍽️';
+    const photoHTML = r.photo
+      ? `<img src="${r.photo}" alt="${r.name}">`
+      : `<div class="recipe-card-icon">${emoji}</div>`;
+    return `
+    <div class="recipe-card" onclick="openRecipe('${r.id}')">
+      <div class="recipe-card-photo">${photoHTML}</div>
+      <div class="recipe-card-body">
+        <div class="recipe-card-name">${r.name}</div>
+        <div class="recipe-card-tags">
           ${r.protein?`<span class="tag protein">${r.protein}</span>`:''}
           ${r.cuisine?`<span class="tag cuisine">${r.cuisine}</span>`:''}
           <span class="tag tier-${t.toLowerCase()}">Tier ${t}</span>
         </div>
-        <div class="recipe-list-meta">${total ? total+'min' : '—'}</div>
-      </div>`;
-    }).join('');
-  } else {
-    container.innerHTML = recipes.map(r => {
-      const total = (r.prepTime||0)+(r.cookTime||0);
-      const t = getRecipeTier(r);
-      const emoji = proteinIcon[r.protein||''] || '🍽️';
-      const photoHTML = r.photo
-        ? `<img src="${r.photo}" alt="${r.name}">`
-        : `<div class="recipe-card-icon">${emoji}</div>`;
-      return `
-      <div class="recipe-card" onclick="openRecipe('${r.id}')">
-        <div class="recipe-card-photo">${photoHTML}</div>
-        <div class="recipe-card-body">
-          <div class="recipe-card-name">${r.name}</div>
-          <div class="recipe-card-tags">
-            ${r.protein?`<span class="tag protein">${r.protein}</span>`:''}
-            ${r.cuisine?`<span class="tag cuisine">${r.cuisine}</span>`:''}
-            <span class="tag tier-${t.toLowerCase()}">Tier ${t}</span>
-          </div>
-          <div class="recipe-card-meta">
-            <span>${total ? total+'min' : '—'}</span>
-            <span>${r.lastPlanned ? 'Last: '+formatDate(new Date(r.lastPlanned+'T00:00:00')) : 'Never made'}</span>
-          </div>
+        <div class="recipe-card-meta">
+          <span>${total ? total+'min' : '—'}</span>
+          <span>${r.lastPlanned ? 'Last: '+formatDate(new Date(r.lastPlanned+'T00:00:00')) : 'Never made'}</span>
         </div>
-      </div>`;
-    }).join('');
-  }
+      </div>
+    </div>`;
+  };
+  const renderListItem = r => {
+    const total = (r.prepTime||0)+(r.cookTime||0);
+    const t = getRecipeTier(r);
+    const emoji = proteinIcon[r.protein||''] || '🍽️';
+    const iconHTML = r.photo
+      ? `<img src="${r.photo}" alt="${r.name}">`
+      : emoji;
+    return `
+    <div class="recipe-list-item" onclick="openRecipe('${r.id}')">
+      <div class="recipe-list-icon">${iconHTML}</div>
+      <div class="recipe-list-name">${r.name}</div>
+      <div class="recipe-list-tags">
+        ${r.protein?`<span class="tag protein">${r.protein}</span>`:''}
+        ${r.cuisine?`<span class="tag cuisine">${r.cuisine}</span>`:''}
+        <span class="tag tier-${t.toLowerCase()}">Tier ${t}</span>
+      </div>
+      <div class="recipe-list-meta">${total ? total+'min' : '—'}</div>
+    </div>`;
+  };
+
+  // Group recipes by course, in a fixed meal order
+  const groups = [
+    {key:'breakfast', label:'Breakfast', icon:'🍳'},
+    {key:'lunch',     label:'Lunch',     icon:'🥪'},
+    {key:'dinner',    label:'Dinner',    icon:'🍽️'},
+    {key:'side',      label:'Sides',     icon:'🥗'},
+    {key:'dessert',   label:'Desserts',  icon:'🍰'},
+    {key:'__other',   label:'Other',     icon:'🍴'},
+  ];
+  const known = new Set(['breakfast','lunch','dinner','side','dessert']);
+  const buckets = {};
+  groups.forEach(g => buckets[g.key] = []);
+  recipes.forEach(r => {
+    const c = (r.course||'').toLowerCase();
+    buckets[known.has(c) ? c : '__other'].push(r);
+  });
+
+  const innerClass = libraryView === 'list' ? 'recipe-list' : 'recipe-grid';
+  const renderItem = libraryView === 'list' ? renderListItem : renderCard;
+
+  container.innerHTML = groups.filter(g => buckets[g.key].length).map(g => `
+    <div class="library-group">
+      <div class="library-group-header">
+        <span>${g.icon} ${g.label}</span>
+        <span class="count">${buckets[g.key].length}</span>
+      </div>
+      <div class="${innerClass}">${buckets[g.key].map(renderItem).join('')}</div>
+    </div>`).join('');
 }
 
 function clearFilters() {
