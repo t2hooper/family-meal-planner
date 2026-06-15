@@ -514,10 +514,12 @@ a:hover{text-decoration:underline}
     </div>
   </div>
   <div class="trip-tabs">
-    <button class="trip-tab active" onclick="switchTrip(1)">🛒 Trip 1 — Sat/Sun</button>
-    <button class="trip-tab" onclick="switchTrip(2)">🥬 Trip 2 — Wed/Thu</button>
+    <button class="trip-tab active" onclick="switchTrip(1)">🏬 Costco</button>
+    <button class="trip-tab" onclick="switchTrip(2)">🛒 Trip 1 — Sat/Sun</button>
+    <button class="trip-tab" onclick="switchTrip(3)">🥬 Trip 2 — Wed/Thu</button>
   </div>
-  <div id="trip1-panel" class="trip-panel active"></div>
+  <div id="costco-panel" class="trip-panel active"></div>
+  <div id="trip1-panel" class="trip-panel"></div>
   <div id="trip2-panel" class="trip-panel"></div>
 </div>
 
@@ -571,6 +573,16 @@ a:hover{text-decoration:underline}
     <div class="staple-add">
       <input id="staple-input" class="form-input" placeholder="Add a staple ingredient…" onkeydown="if(event.key==='Enter')addStaple()">
       <button class="btn btn-primary btn-sm" onclick="addStaple()">Add</button>
+    </div>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Costco Items <span style="font-size:11px;font-weight:400;color:var(--gray-light)">— tagged on the shopping list as a separate Costco trip</span></h3>
+    <p style="font-size:12px;color:var(--gray-mid);margin-bottom:12px">Items you buy at Costco. When a recipe's ingredient matches one of these, it's pulled into the <strong>Costco</strong> list (and Costco export) instead of the regular grocery store trips. Matching is by whole word, so "chicken breast" here will catch "boneless chicken breast" in a recipe.</p>
+    <div id="costco-list" class="staple-list"></div>
+    <div class="staple-add">
+      <input id="costco-input" class="form-input" placeholder="Add a Costco item…" onkeydown="if(event.key==='Enter')addCostcoItem()">
+      <button class="btn btn-primary btn-sm" onclick="addCostcoItem()">Add</button>
     </div>
   </div>
 
@@ -1020,9 +1032,11 @@ CRITICAL PARSING RULES (DO NOT VIOLATE):
         <button class="btn btn-green btn-sm" onclick="copyExportList()">📋 Copy All</button>
         <button id="btn-share-list" class="btn btn-secondary btn-sm" onclick="shareExportList()" style="display:none">📤 Share…</button>
         <select id="export-trip-select" class="filter-select" onchange="refreshExportText()" style="margin-left:auto">
-          <option value="both">Both Trips</option>
-          <option value="1">Trip 1 Only (Sat/Sun)</option>
-          <option value="2">Trip 2 Only (Wed/Thu)</option>
+          <option value="grocery-both">🛒 Grocery Store — Both Trips</option>
+          <option value="grocery-1">🛒 Grocery — Trip 1 (Sat/Sun)</option>
+          <option value="grocery-2">🥬 Grocery — Trip 2 (Wed/Thu)</option>
+          <option value="costco">🏬 Costco Only (for Instacart)</option>
+          <option value="everything">Everything (Costco + Grocery)</option>
         </select>
       </div>
       <textarea id="export-text" style="width:100%;height:340px;font-family:monospace;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);resize:vertical;background:var(--gray-bg);color:var(--gray)" readonly></textarea>
@@ -1170,17 +1184,26 @@ function recipeFromDb(row) {
   };
 }
 function planToDb(plan) {
+  // Costco check-offs are namespaced into trip1_checked (prefix "c::") so we
+  // don't need a new DB column for the third (Costco) list.
+  const t1 = { ...(plan.trip1Checked || {}) };
+  Object.entries(plan.costcoChecked || {}).forEach(([k, v]) => { t1['c::' + k] = v; });
   return {
     week_start: plan.weekStart, days: plan.days,
     finalized: plan.finalized||false,
-    trip1_checked: plan.trip1Checked||{}, trip2_checked: plan.trip2Checked||{}
+    trip1_checked: t1, trip2_checked: plan.trip2Checked||{}
   };
 }
 function planFromDb(row) {
+  const rawT1 = row.trip1_checked || {};
+  const t1 = {}, costco = {};
+  Object.entries(rawT1).forEach(([k, v]) => {
+    if (k.startsWith('c::')) costco[k.slice(3)] = v; else t1[k] = v;
+  });
   return {
     weekStart: row.week_start, days: row.days,
     finalized: row.finalized,
-    trip1Checked: row.trip1_checked||{}, trip2Checked: row.trip2_checked||{}
+    trip1Checked: t1, trip2Checked: row.trip2_checked||{}, costcoChecked: costco
   };
 }
 
@@ -1230,12 +1253,24 @@ async function sbSaveStaples() {
     setSyncStatus('saved');
   } catch(e) { console.error(e); setSyncStatus('error'); }
 }
+async function sbSaveCostco() {
+  setSyncStatus('saving');
+  try {
+    await sbDelete('costco_items', '?id=gt.0');
+    if (appData.costcoItems.length) {
+      await sbUpsert('costco_items', appData.costcoItems.map(name => ({ name })));
+    }
+    setSyncStatus('saved');
+  } catch(e) { console.error(e); setSyncStatus('error'); }
+}
 async function sbSaveAll() {
   setSyncStatus('saving');
   try {
     await sbUpsert('settings', { key:'family', value: appData.settings });
     await sbDelete('pantry_staples', '?id=gt.0');
     if (appData.pantryStaples.length) await sbUpsert('pantry_staples', appData.pantryStaples.map(n => ({ name: n })));
+    await sbDelete('costco_items', '?id=gt.0');
+    if (appData.costcoItems.length)   await sbUpsert('costco_items', appData.costcoItems.map(n => ({ name: n })));
     if (appData.recipes.length)       await sbUpsert('recipes', appData.recipes.map(recipeToDb));
     const plans = Object.values(appData.weekPlans);
     if (plans.length)                 await sbUpsert('week_plans', plans.map(planToDb));
@@ -1248,6 +1283,7 @@ async function sbResetAll() {
     await sbDelete('recipes', '?id=neq.null');
     await sbDelete('week_plans', '?week_start=neq.null');
     await sbDelete('pantry_staples', '?id=gt.0');
+    await sbDelete('costco_items', '?id=gt.0').catch(() => {});
     await sbUpsert('settings', { key:'family', value: appData.settings });
     setSyncStatus('saved');
   } catch(e) { console.error(e); setSyncStatus('error'); }
@@ -1267,7 +1303,7 @@ let currentWeekStart = getWeekStart(new Date());
 const DEFAULT_DATA = () => ({
   version:1,
   settings:{ familyName:'Hooper', servings:5, trip1Day:'saturday', trip2Day:'wednesday', noRepeatWeeks:2, maxSameProtein:3 },
-  pantryStaples:[], recipes:[], weekPlans:{}
+  pantryStaples:[], costcoItems:[], recipes:[], weekPlans:{}
 });
 
 async function initData() {
@@ -1276,19 +1312,22 @@ async function initData() {
   try { appData = ls ? JSON.parse(ls) : DEFAULT_DATA(); }
   catch(e) { appData = DEFAULT_DATA(); }
   if (!appData.recipes) appData = DEFAULT_DATA();
+  if (!appData.costcoItems) appData.costcoItems = [];
 
   // 2. Fetch authoritative data from Supabase
   setSyncStatus('saving');
   try {
-    const [settingsRows, staplesRows, recipesRows, plansRows] = await Promise.all([
+    const [settingsRows, staplesRows, costcoRows, recipesRows, plansRows] = await Promise.all([
       sbGet('settings'),
       sbGet('pantry_staples', '?select=name&order=name'),
+      sbGet('costco_items', '?select=name&order=name').catch(() => []),
       sbGet('recipes', '?select=*&order=name'),
       sbGet('week_plans')
     ]);
     const sf = settingsRows.find(r => r.key === 'family');
     if (sf) appData.settings = sf.value;
     appData.pantryStaples = staplesRows.map(r => r.name);
+    appData.costcoItems = (costcoRows || []).map(r => r.name);
     appData.recipes = recipesRows.map(recipeFromDb);
     appData.weekPlans = {};
     plansRows.forEach(row => { appData.weekPlans[row.week_start] = planFromDb(row); });
@@ -1351,6 +1390,94 @@ function isStaple(ingredientName) {
     const re = new RegExp('(^|[^a-z])' + esc + '([^a-z]|$)', 'i');
     return re.test(name);
   });
+}
+
+// True when an ingredient/item should be bought at Costco. Uses the same
+// whole-word-within-name matching as isStaple so a Costco entry "chicken breast"
+// matches ingredient "boneless chicken breast", etc. The Costco list is
+// maintained in Settings (and batch-uploaded to the costco_items Supabase table).
+function isCostcoItem(itemName) {
+  const name = (itemName || '').toLowerCase().trim();
+  if (!name) return false;
+  return (appData.costcoItems || []).some(c => {
+    const costco = (c || '').toLowerCase().trim();
+    if (!costco) return false;
+    if (name === costco) return true;
+    const esc = costco.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('(^|[^a-z])' + esc + '([^a-z]|$)', 'i');
+    return re.test(name);
+  });
+}
+
+// ── Grocery de-duplication helpers ───────────────────
+// Combine items that are really the same thing but appear multiple times on one
+// trip (e.g. garlic listed by three recipes). We match on a normalized name and
+// merge quantities, summing per-unit and listing different units side by side.
+function _singularize(w) {
+  if (/ies$/.test(w)) return w.replace(/ies$/, 'y');          // berries -> berry
+  if (/(ses|xes|zes|ches|shes)$/.test(w)) return w.replace(/es$/, ''); // dishes -> dish
+  if (/oes$/.test(w)) return w.replace(/es$/, '');            // tomatoes -> tomato
+  if (/ss$/.test(w)) return w;                                // glass stays glass
+  if (/s$/.test(w) && w.length > 3) return w.replace(/s$/, ''); // peppers -> pepper, eggs -> egg
+  return w;
+}
+function normalizeGroceryName(name) {
+  let s = (name || '').toLowerCase().trim().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  const parts = s.split(' ');
+  parts[parts.length - 1] = _singularize(parts[parts.length - 1]);
+  return parts.join(' ');
+}
+function normalizeUnit(u) {
+  const x = (u || '').toLowerCase().trim();
+  const map = {
+    lbs:'lb', pound:'lb', pounds:'lb', lb:'lb',
+    oz:'oz', ounce:'oz', ounces:'oz',
+    cup:'cup', cups:'cup',
+    tbsp:'tbsp', tablespoon:'tbsp', tablespoons:'tbsp',
+    tsp:'tsp', teaspoon:'tsp', teaspoons:'tsp',
+    clove:'clove', cloves:'clove',
+    g:'g', gram:'g', grams:'g', kg:'kg',
+    can:'can', cans:'can', pkg:'pkg', package:'pkg', packages:'pkg',
+    bunch:'bunch', bunches:'bunch', head:'head', heads:'head'
+  };
+  return map[x] || x;
+}
+// Sum a list of quantity strings if all are plain numbers; otherwise join with " + ".
+function combineQtys(qtys) {
+  if (!qtys.length) return '';
+  const parsed = qtys.map(q => ({ raw: q, n: parseFloat(q), frac: String(q).includes('/') }));
+  if (parsed.every(p => !isNaN(p.n) && !p.frac)) {
+    const sum = parsed.reduce((a, p) => a + p.n, 0);
+    return String(Math.round(sum * 100) / 100);
+  }
+  return qtys.join(' + ');
+}
+// Add an item into an aggregation list, merging by normalized name. byUnit maps
+// a normalized unit -> array of quantity strings collected for that unit.
+function addGroceryItem(list, { name, quantity, unit, storeSection, meal }) {
+  const norm = normalizeGroceryName(name);
+  if (!norm) return;
+  const u = normalizeUnit(unit);
+  const q = String(quantity || '').trim();
+  let existing = list.find(x => x.norm === norm);
+  if (!existing) {
+    existing = { name, norm, byUnit: {}, storeSection: storeSection || 'other', meals: [], checked: false };
+    list.push(existing);
+  }
+  if (q) {
+    if (!existing.byUnit[u]) existing.byUnit[u] = [];
+    existing.byUnit[u].push(q);
+  }
+  if (meal && !existing.meals.includes(meal)) existing.meals.push(meal);
+}
+// Build the displayable "3 cloves + 1 tbsp" quantity string for a merged item.
+function groceryQtyStr(item) {
+  const parts = Object.keys(item.byUnit).map(u => {
+    const q = combineQtys(item.byUnit[u]);
+    return q ? (q + (u ? ' ' + u : '')) : u;
+  }).filter(Boolean);
+  return parts.join(' + ');
 }
 
 // Map any store-section value to one of the known grocery sections so an item
@@ -2820,7 +2947,8 @@ function renderGroceryView() {
   const weeks = Object.keys(appData.weekPlans).sort().reverse();
   if (weeks.length === 0) {
     select.innerHTML = '<option>No weeks planned yet</option>';
-    document.getElementById('trip1-panel').innerHTML = '<div class="grocery-empty">Plan a week first to generate grocery lists.</div>';
+    document.getElementById('costco-panel').innerHTML = '<div class="grocery-empty">Plan a week first to generate grocery lists.</div>';
+    document.getElementById('trip1-panel').innerHTML = '';
     document.getElementById('trip2-panel').innerHTML = '';
     return;
   }
@@ -2838,7 +2966,7 @@ function renderGrocery() {
   const plan = appData.weekPlans[weekKey];
   if (!plan) return;
 
-  const trip1Items = [], trip2Items = [];
+  const costcoItems = [], trip1Items = [], trip2Items = [];
   const trip2Days = [4,5,6]; // Thu, Fri, Sat indexes
 
   plan.days.forEach((day, idx) => {
@@ -2849,22 +2977,15 @@ function renderGrocery() {
         const batches = Math.max(1, itemBatches || 1);
         r.ingredients.forEach(ing => {
           if (isStaple(ing.name)) return;
-          // Scale ingredient quantity by batch count
           const scaledQtyStr = multiplyQuantity(String(ing.quantity || ''), batches);
-          const isTrip2 = ing.freshness === 'short-shelf' && trip2Days.includes(idx);
-          const list = isTrip2 ? trip2Items : trip1Items;
-          const existing = list.find(x => x.name.toLowerCase() === ing.name.toLowerCase() && x.unit === ing.unit);
-          if (existing) {
-            // Combine quantities: try numeric addition, otherwise concatenate with "+"
-            const q1 = existing.quantity, q2 = scaledQtyStr;
-            const n1 = parseFloat(q1), n2 = parseFloat(q2);
-            existing.quantity = (!isNaN(n1) && !isNaN(n2) && !q1.includes('/') && !q2.includes('/'))
-              ? String(n1 + n2)
-              : `${q1} + ${q2}`;
-            if (!existing.meals.includes(r.name)) existing.meals.push(r.name);
-          } else {
-            list.push({ name: ing.name, quantity: scaledQtyStr, unit: ing.unit||'', storeSection: normalizeSection(ing.storeSection), meals: [r.name], checked: false });
-          }
+          // Costco items go to their own list regardless of trip timing.
+          const list = isCostcoItem(ing.name)
+            ? costcoItems
+            : ((ing.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+          addGroceryItem(list, {
+            name: ing.name, quantity: scaledQtyStr, unit: ing.unit || '',
+            storeSection: normalizeSection(ing.storeSection), meal: r.name
+          });
         });
       }); // end getMeals forEach
 
@@ -2872,21 +2993,13 @@ function renderGrocery() {
       getMealExtras(day, mealType).forEach(it => {
         const nm = (it.name || '').trim();
         if (!nm) return;
-        const isTrip2 = it.freshness === 'short-shelf' && trip2Days.includes(idx);
-        const list = isTrip2 ? trip2Items : trip1Items;
-        const unit = it.unit || '';
-        const qtyStr = String(it.quantity || '');
-        const existing = list.find(x => x.name.toLowerCase() === nm.toLowerCase() && x.unit === unit);
-        if (existing) {
-          const q1 = existing.quantity, q2 = qtyStr;
-          const n1 = parseFloat(q1), n2 = parseFloat(q2);
-          existing.quantity = (!isNaN(n1) && !isNaN(n2) && !q1.includes('/') && !q2.includes('/'))
-            ? String(n1 + n2)
-            : (q1 && q2 ? `${q1} + ${q2}` : (q1 || q2));
-          if (!existing.meals.includes('Added item')) existing.meals.push('Added item');
-        } else {
-          list.push({ name: nm, quantity: qtyStr, unit, storeSection: normalizeSection(it.storeSection), meals: ['Added item'], checked: false });
-        }
+        const list = isCostcoItem(nm)
+          ? costcoItems
+          : ((it.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+        addGroceryItem(list, {
+          name: nm, quantity: String(it.quantity || ''), unit: it.unit || '',
+          storeSection: normalizeSection(it.storeSection), meal: 'Added item'
+        });
       });
     }); // end mealType forEach
   }); // end days forEach
@@ -2894,41 +3007,54 @@ function renderGrocery() {
   const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
   const sectionLabels = {produce:'🥦 Produce',meat:'🥩 Meat & Seafood',dairy:'🧀 Dairy & Eggs',frozen:'❄️ Frozen',pantry:'🥫 Pantry & Dry Goods',bakery:'🍞 Bakery',other:'📦 Other'};
 
+  const checkedCostco = plan.costcoChecked || {};
   const checkedT1 = plan.trip1Checked || {};
   const checkedT2 = plan.trip2Checked || {};
 
-  function buildPanel(items, checkedMap, tripNum) {
-    if (items.length === 0) return '<div class="grocery-empty">No items for this trip.</div>';
+  // panelId: 'costco' | '1' | '2'. Move button only shown for the two grocery trips.
+  function buildPanel(items, checkedMap, panelId) {
+    const noun = panelId === 'costco' ? 'Costco run' : 'trip';
+    if (items.length === 0) {
+      let empty = `<div class="grocery-empty">No items for this ${noun}.</div>`;
+      return empty + extraInput(panelId);
+    }
     let html = '';
     sections.forEach(sec => {
       const secItems = items.filter(i => i.storeSection === sec);
       if (secItems.length === 0) return;
       html += `<div class="grocery-section"><div class="grocery-section-header">${sectionLabels[sec]||sec}</div>`;
-      secItems.forEach((item, idx) => {
-        const key = item.name+'_'+item.unit;
+      secItems.forEach(item => {
+        const key = item.norm;
         const checked = checkedMap[key] || false;
-        const qtyStr = item.quantity && item.quantity !== '0' ? `${item.quantity} ${item.unit}` : item.unit;
+        const qStr = groceryQtyStr(item);
+        const label = qStr ? `${qStr} ${item.name}` : item.name;
+        const moveBtn = panelId === 'costco' ? '' :
+          `<button class="grocery-item-move" onclick="moveGroceryItem('${weekKey}','${panelId}','${escapeAttr(key)}')">→ Trip ${panelId==='1'?2:1}</button>`;
         html += `
           <div class="grocery-item">
-            <input type="checkbox" ${checked?'checked':''} onchange="toggleGroceryItem('${weekKey}',${tripNum},'${key}',this.checked)">
+            <input type="checkbox" ${checked?'checked':''} onchange="toggleGroceryItem('${weekKey}','${panelId}','${escapeAttr(key)}',this.checked)">
             <div class="grocery-item-text">
-              <div class="grocery-item-name${checked?' checked':''}">${qtyStr} ${item.name}</div>
+              <div class="grocery-item-name${checked?' checked':''}">${label}</div>
               <div class="grocery-item-meal">For: ${item.meals.join(', ')}</div>
             </div>
-            <button class="grocery-item-move" onclick="moveGroceryItem('${weekKey}',${tripNum},'${key}')">→ Trip ${tripNum===1?2:1}</button>
+            ${moveBtn}
           </div>`;
       });
       html += '</div>';
     });
-    html += `<div class="grocery-extra-input">
-      <input id="extra-input-${tripNum}" placeholder="Add extra item…" onkeydown="if(event.key==='Enter')addExtraItem('${weekKey}',${tripNum})">
-      <button class="btn btn-secondary btn-sm" onclick="addExtraItem('${weekKey}',${tripNum})">+ Add</button>
-    </div>`;
-    return html;
+    return html + extraInput(panelId);
   }
 
-  document.getElementById('trip1-panel').innerHTML = buildPanel(trip1Items, checkedT1, 1);
-  document.getElementById('trip2-panel').innerHTML = buildPanel(trip2Items, checkedT2, 2);
+  function extraInput(panelId) {
+    return `<div class="grocery-extra-input">
+      <input id="extra-input-${panelId}" placeholder="Add extra item…" onkeydown="if(event.key==='Enter')addExtraItem('${weekKey}','${panelId}')">
+      <button class="btn btn-secondary btn-sm" onclick="addExtraItem('${weekKey}','${panelId}')">+ Add</button>
+    </div>`;
+  }
+
+  document.getElementById('costco-panel').innerHTML = buildPanel(costcoItems, checkedCostco, 'costco');
+  document.getElementById('trip1-panel').innerHTML = buildPanel(trip1Items, checkedT1, '1');
+  document.getElementById('trip2-panel').innerHTML = buildPanel(trip2Items, checkedT2, '2');
 }
 
 function switchTrip(num) {
@@ -2936,11 +3062,17 @@ function switchTrip(num) {
   document.querySelectorAll('.trip-panel').forEach((p,i) => p.classList.toggle('active', i===num-1));
 }
 
-function toggleGroceryItem(weekKey, tripNum, key, checked) {
+function _checkedMapFor(plan, panelId) {
+  if (panelId === 'costco') { plan.costcoChecked = plan.costcoChecked || {}; return plan.costcoChecked; }
+  if (panelId === '1' || panelId === 1) { plan.trip1Checked = plan.trip1Checked || {}; return plan.trip1Checked; }
+  plan.trip2Checked = plan.trip2Checked || {}; return plan.trip2Checked;
+}
+
+function toggleGroceryItem(weekKey, panelId, key, checked) {
   const plan = appData.weekPlans[weekKey];
   if (!plan) return;
-  if (tripNum===1) { plan.trip1Checked = plan.trip1Checked||{}; plan.trip1Checked[key] = checked; }
-  else             { plan.trip2Checked = plan.trip2Checked||{}; plan.trip2Checked[key] = checked; }
+  const map = _checkedMapFor(plan, panelId);
+  map[key] = checked;
   persistToSession();
   sbSaveWeekPlan(plan);
   // Update text decoration without full re-render
@@ -2948,24 +3080,22 @@ function toggleGroceryItem(weekKey, tripNum, key, checked) {
   if (nameEl) nameEl.classList.toggle('checked', checked);
 }
 
-function addExtraItem(weekKey, tripNum) {
-  const input = document.getElementById(`extra-input-${tripNum}`);
+function addExtraItem(weekKey, panelId) {
+  const input = document.getElementById(`extra-input-${panelId}`);
   const val = input.value.trim();
   if (!val) return;
   const plan = appData.weekPlans[weekKey];
   if (!plan) return;
-  const key = 'extra_'+(Date.now());
-  if (tripNum===1) { plan.trip1Checked = plan.trip1Checked||{}; }
-  else             { plan.trip2Checked = plan.trip2Checked||{}; }
+  _checkedMapFor(plan, panelId);
   input.value = '';
   persistToSession();
   sbSaveWeekPlan(plan);
   renderGrocery();
 }
 
-function moveGroceryItem(weekKey, fromTrip, key) {
+function moveGroceryItem(weekKey, fromPanel, key) {
   // Simple visual swap — mark it moved in session
-  showToast('Item moved to Trip '+(fromTrip===1?2:1), 'success');
+  showToast('Item moved to Trip '+(fromPanel==='1'?2:1), 'success');
 }
 
 // ═══════════════════════════════════════════════════
@@ -2999,6 +3129,7 @@ function renderSettings() {
   }
 
   renderStaples();
+  renderCostco();
 }
 
 function saveSettings() {
@@ -3044,6 +3175,40 @@ function removeStaple(idx) {
   persistToSession();
   sbSaveStaples();
   renderStaples();
+}
+
+function renderCostco() {
+  const list = document.getElementById('costco-list');
+  if (!list) return;
+  if (!appData.costcoItems) appData.costcoItems = [];
+  list.innerHTML = appData.costcoItems.length
+    ? appData.costcoItems.map((c,i) =>
+        `<div class="staple-chip">${c}<button onclick="removeCostcoItem(${i})">✕</button></div>`
+      ).join('')
+    : '<span style="font-size:12px;color:var(--gray-light)">No Costco items yet. Add them here, or batch-upload to the costco_items table in Supabase.</span>';
+}
+
+function addCostcoItem() {
+  const input = document.getElementById('costco-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!appData.costcoItems) appData.costcoItems = [];
+  if (!appData.costcoItems.some(c => c.toLowerCase() === val.toLowerCase())) {
+    appData.costcoItems.push(val);
+    persistToSession();
+    sbSaveCostco();
+  }
+  input.value = '';
+  renderCostco();
+  if (document.getElementById('view-grocery').classList.contains('active')) renderGrocery();
+}
+
+function removeCostcoItem(idx) {
+  appData.costcoItems.splice(idx,1);
+  persistToSession();
+  sbSaveCostco();
+  renderCostco();
+  if (document.getElementById('view-grocery').classList.contains('active')) renderGrocery();
 }
 
 // ═══════════════════════════════════════════════════
@@ -3142,63 +3307,69 @@ function refreshExportText() {
   document.getElementById('export-text').value = generateExportList(tripSel);
 }
 
-function generateExportList(tripFilter) {
-  // Gather aggregated grocery data (re-use existing renderGrocery logic on raw data)
+function generateExportList(filter) {
   const weekKey = document.getElementById('grocery-week-select')?.value || dateKey(getWeekStart(new Date()));
-  const plan = appData.weekPlans.find(w => w.weekStart === weekKey);
+  const plan = appData.weekPlans[weekKey];
   if (!plan) return '(No meals planned for this week yet.)';
 
-  const agg1 = {}; // trip 1
-  const agg2 = {}; // trip 2
-
+  // Build the same three de-duplicated lists the on-screen grocery view uses.
+  const costcoItems = [], trip1Items = [], trip2Items = [];
+  const trip2Days = [4,5,6];
   const mealTypes = ['dinner','lunch','breakfast'];
-  plan.days.forEach(day => {
+  plan.days.forEach((day, idx) => {
     mealTypes.forEach(mt => {
       getMeals(day, mt).forEach(({id: rid, batches}) => {
-        const recipe = appData.recipes.find(r => r.id === rid);
-        if (!recipe) return;
-        (recipe.ingredients || []).forEach(ing => {
+        const recipe = getRecipeById(rid);
+        if (!recipe || !recipe.ingredients) return;
+        const b = Math.max(1, batches || 1);
+        recipe.ingredients.forEach(ing => {
           if (isStaple(ing.name)) return;
-          const scaledQty = multiplyQuantity(String(ing.quantity || ''), batches);
-          const key = (ing.name || '').toLowerCase().trim();
-          const unit = (ing.unit || '').trim();
-          const trip = (ing.freshness === 'short-shelf') ? agg2 : agg1;
-          if (!trip[key]) {
-            trip[key] = { name: ing.name, unit, quantities: [], category: ing.category || 'Other' };
-          }
-          if (scaledQty) trip[key].quantities.push(scaledQty);
+          const scaledQty = multiplyQuantity(String(ing.quantity || ''), b);
+          const list = isCostcoItem(ing.name)
+            ? costcoItems
+            : ((ing.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+          addGroceryItem(list, { name: ing.name, quantity: scaledQty, unit: ing.unit || '', storeSection: normalizeSection(ing.storeSection), meal: recipe.name });
         });
+      });
+      getMealExtras(day, mt).forEach(it => {
+        const nm = (it.name || '').trim();
+        if (!nm) return;
+        const list = isCostcoItem(nm)
+          ? costcoItems
+          : ((it.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+        addGroceryItem(list, { name: nm, quantity: String(it.quantity || ''), unit: it.unit || '', storeSection: normalizeSection(it.storeSection), meal: 'Added item' });
       });
     });
   });
 
-  function formatSection(agg, header) {
-    if (Object.keys(agg).length === 0) return '';
-    // Group by category
-    const cats = {};
-    Object.values(agg).forEach(item => {
-      const cat = item.category || 'Other';
-      if (!cats[cat]) cats[cat] = [];
-      cats[cat].push(item);
-    });
+  const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
+  const sectionLabels = {produce:'Produce',meat:'Meat & Seafood',dairy:'Dairy & Eggs',frozen:'Frozen',pantry:'Pantry & Dry Goods',bakery:'Bakery',other:'Other'};
+
+  function formatSection(items, header) {
+    if (!items.length) return header + '\n' + '─'.repeat(header.length) + '\n(none)\n';
     let out = header + '\n' + '─'.repeat(header.length) + '\n';
-    Object.keys(cats).sort().forEach(cat => {
-      out += `\n[${cat}]\n`;
-      cats[cat].sort((a,b) => a.name.localeCompare(b.name)).forEach(item => {
-        const qStr = item.quantities.length ? item.quantities.join(' + ') + (item.unit ? ' ' + item.unit : '') : '';
+    sections.forEach(sec => {
+      const secItems = items.filter(i => i.storeSection === sec)
+        .sort((a,b) => a.name.localeCompare(b.name));
+      if (!secItems.length) return;
+      out += `\n[${sectionLabels[sec]}]\n`;
+      secItems.forEach(item => {
+        const qStr = groceryQtyStr(item);
         out += `• ${item.name}${qStr ? '  (' + qStr + ')' : ''}\n`;
       });
     });
     return out;
   }
 
-  let text = `GROCERY LIST — Week of ${weekKey}\n${'═'.repeat(36)}\n\n`;
-  if (tripFilter === 'both' || tripFilter === '1') {
-    text += formatSection(agg1, '🛒 TRIP 1 — Sat/Sun (Bulk + Early-Week)');
-    text += '\n';
+  let text = `SHOPPING LIST — Week of ${weekKey}\n${'═'.repeat(36)}\n\n`;
+  if (filter === 'costco' || filter === 'everything') {
+    text += formatSection(costcoItems, '🏬 COSTCO') + '\n';
   }
-  if (tripFilter === 'both' || tripFilter === '2') {
-    text += formatSection(agg2, '🥬 TRIP 2 — Wed/Thu (Short-Shelf Fresh)');
+  if (filter === 'grocery-both' || filter === 'grocery-1' || filter === 'everything') {
+    text += formatSection(trip1Items, '🛒 GROCERY STORE — Trip 1 (Sat/Sun)') + '\n';
+  }
+  if (filter === 'grocery-both' || filter === 'grocery-2' || filter === 'everything') {
+    text += formatSection(trip2Items, '🥬 GROCERY STORE — Trip 2 (Wed/Thu)');
   }
   return text.trim();
 }
