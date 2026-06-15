@@ -423,6 +423,7 @@ a:hover{text-decoration:underline}
     <button class="btn btn-secondary" onclick="openGrocery()">🛒 View Grocery List</button>
     <button class="btn btn-teal" onclick="autoSuggestWeek()">✨ Auto-Suggest Week</button>
     <button class="btn btn-primary" onclick="finalizeWeek()">✓ Finalize Week</button>
+    <button class="btn btn-danger" onclick="clearWeek()">🗑️ Clear Week</button>
   </div>
 </div>
 
@@ -1234,6 +1235,7 @@ async function sbDeleteRecipe(id) {
   catch(e) { console.error(e); setSyncStatus('error'); }
 }
 async function sbSaveWeekPlan(plan) {
+  if (plan && plan.weekStart) _dirtyWeeks.add(plan.weekStart);
   setSyncStatus('saving');
   try { await sbUpsert('week_plans', planToDb(plan)); setSyncStatus('saved'); }
   catch(e) { console.error(e); setSyncStatus('error'); }
@@ -1299,6 +1301,10 @@ let currentPickMealType = null;
 let currentReplaceId = null;
 let currentMonthDate = new Date();
 let currentWeekStart = getWeekStart(new Date());
+// Week keys the user has edited THIS session. The initial Supabase load is
+// async/fire-and-forget; without this, a delete made before that load resolves
+// would be clobbered by the stale server snapshot (meals "came back").
+let _dirtyWeeks = new Set();
 
 const DEFAULT_DATA = () => ({
   version:1,
@@ -1329,8 +1335,12 @@ async function initData() {
     appData.pantryStaples = staplesRows.map(r => r.name);
     appData.costcoItems = (costcoRows || []).map(r => r.name);
     appData.recipes = recipesRows.map(recipeFromDb);
-    appData.weekPlans = {};
-    plansRows.forEach(row => { appData.weekPlans[row.week_start] = planFromDb(row); });
+    const fresh = {};
+    plansRows.forEach(row => { fresh[row.week_start] = planFromDb(row); });
+    // Don't clobber any week the user already edited this session (its save may
+    // still be in flight). Keep the local version for those weeks.
+    _dirtyWeeks.forEach(wk => { if (appData.weekPlans && appData.weekPlans[wk]) fresh[wk] = appData.weekPlans[wk]; });
+    appData.weekPlans = fresh;
     persistToSession();
     setSyncStatus('saved');
   } catch(e) {
@@ -2237,6 +2247,30 @@ function clearMeal(dateStr, mealType) {
   persistToSession();
   sbSaveWeekPlan(ensureWeekPlan(currentWeekStart));
   renderWeekly();
+}
+
+// Empty an entire week in one click (meals + added grocery items + check-offs).
+// Does NOT touch the recipe library. Used to reset test/fake data.
+function clearWeek() {
+  const plan = ensureWeekPlan(currentWeekStart);
+  const label = document.getElementById('week-title').textContent || 'this week';
+  if (!confirm(`Clear ALL meals and added items for ${label}?\n\nThis empties every day for the week. Your recipe library is not affected.`)) return;
+  plan.days.forEach(day => {
+    ['dinner','lunch','breakfast'].forEach(mt => {
+      day[mt + 's'] = [];
+      day[mt] = null;
+      day[mt + 'Batches'] = 1;
+      day[mt + 'Items'] = [];
+    });
+  });
+  plan.finalized = false;
+  plan.trip1Checked = {};
+  plan.trip2Checked = {};
+  plan.costcoChecked = {};
+  persistToSession();
+  sbSaveWeekPlan(plan);
+  renderWeekly();
+  showToast('Week cleared.', 'success');
 }
 
 // ── ROTATION ENGINE ──────────────────────────────
