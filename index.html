@@ -189,6 +189,15 @@ a:hover{text-decoration:underline}
 .grocery-extra-input{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
 .grocery-extra-input input{flex:1;border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:13px}
 .grocery-empty{text-align:center;padding:40px;color:var(--gray-light);font-size:13px}
+.staple-checklist{margin-top:16px;border-top:1px dashed var(--border);padding-top:10px}
+.staple-checklist summary{font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;list-style:none}
+.staple-checklist summary::-webkit-details-marker{display:none}
+.staple-checklist summary::before{content:'▸ ';color:var(--gray-light)}
+.staple-checklist[open] summary::before{content:'▾ '}
+.staple-check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;margin-top:10px}
+.staple-check-item{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--gray);cursor:pointer;padding:3px 2px;border-radius:4px}
+.staple-check-item:hover{background:var(--gray-bg)}
+.staple-check-item input[type=checkbox]{accent-color:var(--green);width:15px;height:15px;flex-shrink:0;margin:0}
 
 /* ── SETTINGS ── */
 #view-settings{max-width:700px;margin:0 auto}
@@ -349,6 +358,7 @@ a:hover{text-decoration:underline}
   body.printing-grocery .trip-tabs,
   body.printing-grocery .grocery-item-move,
   body.printing-grocery .grocery-extra-input,
+  body.printing-grocery .staple-checklist,
   body.printing-grocery #app-nav,
   body.printing-grocery .find-recipes-bar{display:none!important}
   body.printing-grocery .trip-panel{display:block!important}
@@ -1188,7 +1198,10 @@ function planToDb(plan) {
   // Costco check-offs are namespaced into trip1_checked (prefix "c::") so we
   // don't need a new DB column for the third (Costco) list.
   const t1 = { ...(plan.trip1Checked || {}) };
+  // Costco check-offs (prefix "c::") and per-item trip overrides (prefix "mv::")
+  // are namespaced into trip1_checked so we don't need extra DB columns.
   Object.entries(plan.costcoChecked || {}).forEach(([k, v]) => { t1['c::' + k] = v; });
+  Object.entries(plan.tripOverrides || {}).forEach(([k, v]) => { t1['mv::' + k] = v; });
   return {
     week_start: plan.weekStart, days: plan.days,
     finalized: plan.finalized||false,
@@ -1197,14 +1210,17 @@ function planToDb(plan) {
 }
 function planFromDb(row) {
   const rawT1 = row.trip1_checked || {};
-  const t1 = {}, costco = {};
+  const t1 = {}, costco = {}, overrides = {};
   Object.entries(rawT1).forEach(([k, v]) => {
-    if (k.startsWith('c::')) costco[k.slice(3)] = v; else t1[k] = v;
+    if (k.startsWith('c::')) costco[k.slice(3)] = v;
+    else if (k.startsWith('mv::')) overrides[k.slice(4)] = v;
+    else t1[k] = v;
   });
   return {
     weekStart: row.week_start, days: row.days,
     finalized: row.finalized,
-    trip1Checked: t1, trip2Checked: row.trip2_checked||{}, costcoChecked: costco
+    trip1Checked: t1, trip2Checked: row.trip2_checked||{}, costcoChecked: costco,
+    tripOverrides: overrides
   };
 }
 
@@ -1235,9 +1251,15 @@ async function sbDeleteRecipe(id) {
   catch(e) { console.error(e); setSyncStatus('error'); }
 }
 async function sbSaveWeekPlan(plan) {
-  if (plan && plan.weekStart) _dirtyWeeks.add(plan.weekStart);
+  if (plan && plan.weekStart) { _dirtyWeeks.add(plan.weekStart); _persistDirty(); }
   setSyncStatus('saving');
-  try { await sbUpsert('week_plans', planToDb(plan)); setSyncStatus('saved'); }
+  try {
+    await sbUpsert('week_plans', planToDb(plan));
+    // Only clear the dirty flag once the save is CONFIRMED, so a dropped/aborted
+    // write (e.g. iOS suspending the PWA mid-request) is retried on next load.
+    if (plan && plan.weekStart) { _dirtyWeeks.delete(plan.weekStart); _persistDirty(); }
+    setSyncStatus('saved');
+  }
   catch(e) { console.error(e); setSyncStatus('error'); }
 }
 async function sbSaveSettings() {
@@ -1301,10 +1323,21 @@ let currentPickMealType = null;
 let currentReplaceId = null;
 let currentMonthDate = new Date();
 let currentWeekStart = getWeekStart(new Date());
-// Week keys the user has edited THIS session. The initial Supabase load is
-// async/fire-and-forget; without this, a delete made before that load resolves
-// would be clobbered by the stale server snapshot (meals "came back").
-let _dirtyWeeks = new Set();
+// Week keys with unsaved local edits. The initial Supabase load is
+// async/fire-and-forget; without this, an edit made before that load resolves
+// would be clobbered by the stale server snapshot (meals "came back", or a
+// shopping-list check/add disappearing). This now PERSISTS across reloads: iOS
+// often suspends the PWA before a fire-and-forget save finishes, so on the next
+// open we must keep the local copy AND retry the save instead of trusting the
+// stale server snapshot. A week is removed from this set only after a CONFIRMED
+// successful save.
+let _dirtyWeeks = new Set((() => {
+  try { return JSON.parse(localStorage.getItem('mealplanner_dirty') || '[]'); }
+  catch(e) { return []; }
+})());
+function _persistDirty() {
+  try { localStorage.setItem('mealplanner_dirty', JSON.stringify([..._dirtyWeeks])); } catch(e) {}
+}
 
 const DEFAULT_DATA = () => ({
   version:1,
@@ -1337,12 +1370,18 @@ async function initData() {
     appData.recipes = recipesRows.map(recipeFromDb);
     const fresh = {};
     plansRows.forEach(row => { fresh[row.week_start] = planFromDb(row); });
-    // Don't clobber any week the user already edited this session (its save may
-    // still be in flight). Keep the local version for those weeks.
-    _dirtyWeeks.forEach(wk => { if (appData.weekPlans && appData.weekPlans[wk]) fresh[wk] = appData.weekPlans[wk]; });
+    // Don't clobber any week with unsaved local edits. _dirtyWeeks persists
+    // across reloads, so this also covers a write that was dropped before it
+    // reached Supabase (iOS suspended the PWA). For those weeks, keep the local
+    // copy AND retry the save now so the server catches up.
+    const _retry = [];
+    _dirtyWeeks.forEach(wk => {
+      if (appData.weekPlans && appData.weekPlans[wk]) { fresh[wk] = appData.weekPlans[wk]; _retry.push(fresh[wk]); }
+    });
     appData.weekPlans = fresh;
     persistToSession();
     setSyncStatus('saved');
+    _retry.forEach(p => sbSaveWeekPlan(p));
   } catch(e) {
     console.error('Supabase load failed, running from cache:', e);
     setSyncStatus('error');
@@ -3002,6 +3041,16 @@ function renderGrocery() {
 
   const costcoItems = [], trip1Items = [], trip2Items = [];
   const trip2Days = [4,5,6]; // Thu, Fri, Sat indexes
+  const overrides = plan.tripOverrides || {};
+  // Decide which grocery trip an item lands on. A manual "→ Trip X" move stores
+  // a persistent override keyed by the item's normalized name; otherwise fall
+  // back to the freshness/short-shelf rule.
+  function pickTripList(name, freshness, idx, t1, t2) {
+    const ov = overrides[normalizeGroceryName(name)];
+    if (ov === '1') return t1;
+    if (ov === '2') return t2;
+    return (freshness === 'short-shelf' && trip2Days.includes(idx)) ? t2 : t1;
+  }
 
   plan.days.forEach((day, idx) => {
     ['dinner','lunch','breakfast'].forEach(mealType => {
@@ -3015,7 +3064,7 @@ function renderGrocery() {
           // Costco items go to their own list regardless of trip timing.
           const list = isCostcoItem(ing.name)
             ? costcoItems
-            : ((ing.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+            : pickTripList(ing.name, ing.freshness, idx, trip1Items, trip2Items);
           addGroceryItem(list, {
             name: ing.name, quantity: scaledQtyStr, unit: ing.unit || '',
             storeSection: normalizeSection(ing.storeSection), meal: r.name
@@ -3029,7 +3078,7 @@ function renderGrocery() {
         if (!nm) return;
         const list = isCostcoItem(nm)
           ? costcoItems
-          : ((it.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+          : pickTripList(nm, it.freshness, idx, trip1Items, trip2Items);
         addGroceryItem(list, {
           name: nm, quantity: String(it.quantity || ''), unit: it.unit || '',
           storeSection: normalizeSection(it.storeSection), meal: 'Added item'
@@ -3048,35 +3097,59 @@ function renderGrocery() {
   // panelId: 'costco' | '1' | '2'. Move button only shown for the two grocery trips.
   function buildPanel(items, checkedMap, panelId) {
     const noun = panelId === 'costco' ? 'Costco run' : 'trip';
-    if (items.length === 0) {
-      let empty = `<div class="grocery-empty">No items for this ${noun}.</div>`;
-      return empty + extraInput(panelId);
-    }
     let html = '';
-    sections.forEach(sec => {
-      const secItems = items.filter(i => i.storeSection === sec);
-      if (secItems.length === 0) return;
-      html += `<div class="grocery-section"><div class="grocery-section-header">${sectionLabels[sec]||sec}</div>`;
-      secItems.forEach(item => {
-        const key = item.norm;
-        const checked = checkedMap[key] || false;
-        const qStr = groceryQtyStr(item);
-        const label = qStr ? `${qStr} ${item.name}` : item.name;
-        const moveBtn = panelId === 'costco' ? '' :
-          `<button class="grocery-item-move" onclick="moveGroceryItem('${weekKey}','${panelId}','${escapeAttr(key)}')">→ Trip ${panelId==='1'?2:1}</button>`;
-        html += `
-          <div class="grocery-item">
-            <input type="checkbox" ${checked?'checked':''} onchange="toggleGroceryItem('${weekKey}','${panelId}','${escapeAttr(key)}',this.checked)">
-            <div class="grocery-item-text">
-              <div class="grocery-item-name${checked?' checked':''}">${label}</div>
-              <div class="grocery-item-meal">For: ${item.meals.join(', ')}</div>
-            </div>
-            ${moveBtn}
-          </div>`;
+    if (items.length === 0) {
+      html += `<div class="grocery-empty">No items from your meal plan for this ${noun}.</div>`;
+    } else {
+      sections.forEach(sec => {
+        const secItems = items.filter(i => i.storeSection === sec);
+        if (secItems.length === 0) return;
+        html += `<div class="grocery-section"><div class="grocery-section-header">${sectionLabels[sec]||sec}</div>`;
+        secItems.forEach(item => {
+          const key = item.norm;
+          const checked = checkedMap[key] || false;
+          const qStr = groceryQtyStr(item);
+          const label = qStr ? `${qStr} ${item.name}` : item.name;
+          const moveBtn = panelId === 'costco' ? '' :
+            `<button class="grocery-item-move" onclick="moveGroceryItem('${weekKey}','${panelId}','${escapeAttr(key)}')">→ Trip ${panelId==='1'?2:1}</button>`;
+          html += `
+            <div class="grocery-item">
+              <input type="checkbox" ${checked?'checked':''} onchange="toggleGroceryItem(event,'${weekKey}','${panelId}','${escapeAttr(key)}',this.checked)">
+              <div class="grocery-item-text">
+                <div class="grocery-item-name${checked?' checked':''}">${label}</div>
+                <div class="grocery-item-meal">For: ${item.meals.join(', ')}</div>
+              </div>
+              ${moveBtn}
+            </div>`;
+        });
+        html += '</div>';
       });
-      html += '</div>';
+    }
+    html += extrasSection(checkedMap, panelId);
+    return html + extraInput(panelId) + stapleChecklist(checkedMap, panelId);
+  }
+
+  // Manually-added "extra" items live as x:: keys in this panel's checked map
+  // (value = checked state). This avoids a new DB column.
+  function extrasSection(checkedMap, panelId) {
+    const keys = Object.keys(checkedMap).filter(k => k.startsWith('x::'))
+      .sort((a,b) => a.slice(3).localeCompare(b.slice(3)));
+    if (!keys.length) return '';
+    let html = `<div class="grocery-section"><div class="grocery-section-header">➕ Added items</div>`;
+    keys.forEach(key => {
+      const nm = key.slice(3);
+      const checked = checkedMap[key] || false;
+      html += `
+        <div class="grocery-item">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleGroceryItem(event,'${weekKey}','${panelId}','${escapeAttr(key)}',this.checked)">
+          <div class="grocery-item-text">
+            <div class="grocery-item-name${checked?' checked':''}">${nm}</div>
+            <div class="grocery-item-meal">Added by you</div>
+          </div>
+          <button class="grocery-item-move" onclick="removeExtraItem('${weekKey}','${panelId}','${escapeAttr(key)}')">✕ Remove</button>
+        </div>`;
     });
-    return html + extraInput(panelId);
+    return html + '</div>';
   }
 
   function extraInput(panelId) {
@@ -3084,6 +3157,24 @@ function renderGrocery() {
       <input id="extra-input-${panelId}" placeholder="Add extra item…" onkeydown="if(event.key==='Enter')addExtraItem('${weekKey}','${panelId}')">
       <button class="btn btn-secondary btn-sm" onclick="addExtraItem('${weekKey}','${panelId}')">+ Add</button>
     </div>`;
+  }
+
+  // Quick-add checklist of pantry staples, at the bottom of every list. Checking
+  // a staple adds it to THIS tab (as an added item); unchecking removes it.
+  function stapleChecklist(checkedMap, panelId) {
+    const staples = (appData.pantryStaples || []).slice().sort((a,b) => a.localeCompare(b));
+    if (!staples.length) return '';
+    const rows = staples.map(s => {
+      const has = ('x::' + s) in checkedMap;
+      const enc = encodeURIComponent(s).replace(/'/g, '%27');
+      return `<label class="staple-check-item">
+        <input type="checkbox" ${has?'checked':''} onchange="toggleStapleAdd('${weekKey}','${panelId}','${enc}',this.checked)">
+        <span>${escapeAttr(s)}</span></label>`;
+    }).join('');
+    return `<details class="staple-checklist">
+      <summary>🧂 Add a staple to this list</summary>
+      <div class="staple-check-grid">${rows}</div>
+    </details>`;
   }
 
   document.getElementById('costco-panel').innerHTML = buildPanel(costcoItems, checkedCostco, 'costco');
@@ -3102,34 +3193,65 @@ function _checkedMapFor(plan, panelId) {
   plan.trip2Checked = plan.trip2Checked || {}; return plan.trip2Checked;
 }
 
-function toggleGroceryItem(weekKey, panelId, key, checked) {
+function toggleGroceryItem(ev, weekKey, panelId, key, checked) {
   const plan = appData.weekPlans[weekKey];
   if (!plan) return;
   const map = _checkedMapFor(plan, panelId);
   map[key] = checked;
   persistToSession();
   sbSaveWeekPlan(plan);
-  // Update text decoration without full re-render
-  const nameEl = event.target.closest('.grocery-item').querySelector('.grocery-item-name');
+  // Update text decoration without a full re-render (keeps scroll position).
+  const item = ev && ev.target ? ev.target.closest('.grocery-item') : null;
+  const nameEl = item ? item.querySelector('.grocery-item-name') : null;
   if (nameEl) nameEl.classList.toggle('checked', checked);
 }
 
 function addExtraItem(weekKey, panelId) {
   const input = document.getElementById(`extra-input-${panelId}`);
-  const val = input.value.trim();
+  const val = (input.value || '').trim();
   if (!val) return;
   const plan = appData.weekPlans[weekKey];
   if (!plan) return;
-  _checkedMapFor(plan, panelId);
+  const map = _checkedMapFor(plan, panelId);
+  map['x::' + val] = false;   // store the added item (unchecked) so it persists
   input.value = '';
   persistToSession();
   sbSaveWeekPlan(plan);
   renderGrocery();
 }
 
+function removeExtraItem(weekKey, panelId, key) {
+  const plan = appData.weekPlans[weekKey];
+  if (!plan) return;
+  const map = _checkedMapFor(plan, panelId);
+  delete map[key];
+  persistToSession();
+  sbSaveWeekPlan(plan);
+  renderGrocery();
+}
+
+function toggleStapleAdd(weekKey, panelId, enc, add) {
+  const name = decodeURIComponent(enc);
+  const plan = appData.weekPlans[weekKey];
+  if (!plan) return;
+  const map = _checkedMapFor(plan, panelId);
+  if (add) map['x::' + name] = false; else delete map['x::' + name];
+  persistToSession();
+  sbSaveWeekPlan(plan);
+  renderGrocery();
+}
+
 function moveGroceryItem(weekKey, fromPanel, key) {
-  // Simple visual swap — mark it moved in session
-  showToast('Item moved to Trip '+(fromPanel==='1'?2:1), 'success');
+  const plan = appData.weekPlans[weekKey];
+  if (!plan) return;
+  plan.tripOverrides = plan.tripOverrides || {};
+  const target = fromPanel === '1' ? '2' : '1';
+  // key is the item's normalized name; pickTripList reads this on next render.
+  plan.tripOverrides[key] = target;
+  persistToSession();
+  sbSaveWeekPlan(plan);
+  renderGrocery();
+  showToast('Moved to Trip ' + target, 'success');
 }
 
 // ═══════════════════════════════════════════════════
@@ -3350,6 +3472,13 @@ function generateExportList(filter) {
   const costcoItems = [], trip1Items = [], trip2Items = [];
   const trip2Days = [4,5,6];
   const mealTypes = ['dinner','lunch','breakfast'];
+  const overrides = plan.tripOverrides || {};
+  const pickList = (name, freshness, idx) => {
+    const ov = overrides[normalizeGroceryName(name)];
+    if (ov === '1') return trip1Items;
+    if (ov === '2') return trip2Items;
+    return (freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items;
+  };
   plan.days.forEach((day, idx) => {
     mealTypes.forEach(mt => {
       getMeals(day, mt).forEach(({id: rid, batches}) => {
@@ -3359,22 +3488,26 @@ function generateExportList(filter) {
         recipe.ingredients.forEach(ing => {
           if (isStaple(ing.name)) return;
           const scaledQty = multiplyQuantity(String(ing.quantity || ''), b);
-          const list = isCostcoItem(ing.name)
-            ? costcoItems
-            : ((ing.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+          const list = isCostcoItem(ing.name) ? costcoItems : pickList(ing.name, ing.freshness, idx);
           addGroceryItem(list, { name: ing.name, quantity: scaledQty, unit: ing.unit || '', storeSection: normalizeSection(ing.storeSection), meal: recipe.name });
         });
       });
       getMealExtras(day, mt).forEach(it => {
         const nm = (it.name || '').trim();
         if (!nm) return;
-        const list = isCostcoItem(nm)
-          ? costcoItems
-          : ((it.freshness === 'short-shelf' && trip2Days.includes(idx)) ? trip2Items : trip1Items);
+        const list = isCostcoItem(nm) ? costcoItems : pickList(nm, it.freshness, idx);
         addGroceryItem(list, { name: nm, quantity: String(it.quantity || ''), unit: it.unit || '', storeSection: normalizeSection(it.storeSection), meal: 'Added item' });
       });
     });
   });
+
+  // Manually-added "extra" items (stored as x:: keys in each panel's checked map).
+  [['costco', costcoItems, plan.costcoChecked], ['1', trip1Items, plan.trip1Checked], ['2', trip2Items, plan.trip2Checked]]
+    .forEach(([, list, map]) => {
+      Object.keys(map || {}).filter(k => k.startsWith('x::')).forEach(k => {
+        addGroceryItem(list, { name: k.slice(3), quantity: '', unit: '', storeSection: 'other', meal: 'Added item' });
+      });
+    });
 
   const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
   const sectionLabels = {produce:'Produce',meat:'Meat & Seafood',dairy:'Dairy & Eggs',frozen:'Frozen',pantry:'Pantry & Dry Goods',bakery:'Bakery',other:'Other'};
