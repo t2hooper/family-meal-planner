@@ -351,20 +351,48 @@ a:hover{text-decoration:underline}
   .recipe-body{display:grid!important}
   body{font-size:12px}
 
-  /* Grocery print — body gets .printing-grocery before window.print() */
+  /* Grocery print — body gets .printing-grocery before window.print().
+     Prints ONLY the selected trip (the .active panel), condensed to a single
+     page: each item is just a checkbox + name flowed into multiple columns. */
+  @page{margin:0.4in}
   body:not(.printing-grocery) #view-grocery{display:none!important}
   body.printing-grocery #view-grocery{display:block!important}
-  body.printing-grocery .page-header .btn,
+  body.printing-grocery .page-header,
   body.printing-grocery .trip-tabs,
   body.printing-grocery .grocery-item-move,
+  body.printing-grocery .grocery-item-meal,
   body.printing-grocery .grocery-extra-input,
   body.printing-grocery .staple-checklist,
   body.printing-grocery #app-nav,
   body.printing-grocery .find-recipes-bar{display:none!important}
-  body.printing-grocery .trip-panel{display:block!important}
-  body.printing-grocery .grocery-section{page-break-inside:avoid}
+  /* Only the on-screen-selected panel prints (non-active panels stay hidden). */
+  body.printing-grocery .trip-panel:not(.active){display:none!important}
+  body.printing-grocery .trip-panel.active{
+    display:block!important;
+    column-count:3;column-gap:20px;column-fill:balance;
+  }
+  body.printing-grocery .grocery-print-head{
+    display:block!important;font-size:14px;font-weight:700;color:#000;
+    margin:0 0 8px;padding-bottom:4px;border-bottom:1.5px solid #000;
+  }
+  body.printing-grocery .grocery-section{
+    break-inside:avoid;page-break-inside:avoid;margin-bottom:6px;
+  }
+  body.printing-grocery .grocery-section-header{
+    font-size:10px;padding:2px 0;margin-bottom:2px;
+  }
+  body.printing-grocery .grocery-item{
+    padding:1px 0;gap:5px;break-inside:avoid;page-break-inside:avoid;
+  }
+  body.printing-grocery .grocery-item input[type=checkbox]{
+    width:11px;height:11px;margin-top:1px;
+  }
+  body.printing-grocery .grocery-item-name{font-size:10px;line-height:1.25}
   body.printing-grocery .grocery-item-name.checked{text-decoration:line-through;color:#999}
+  body.printing-grocery .grocery-empty{font-size:11px}
 }
+/* Hidden on screen; the print stylesheet above reveals it. */
+.grocery-print-head{display:none}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gray);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
@@ -529,6 +557,8 @@ a:hover{text-decoration:underline}
     <button class="trip-tab" onclick="switchTrip(2)">🛒 Trip 1 — Sat/Sun</button>
     <button class="trip-tab" onclick="switchTrip(3)">🥬 Trip 2 — Wed/Thu</button>
   </div>
+  <!-- Shown only when printing — labels which list is on the page. -->
+  <div id="grocery-print-head" class="grocery-print-head"></div>
   <div id="costco-panel" class="trip-panel active"></div>
   <div id="trip1-panel" class="trip-panel"></div>
   <div id="trip2-panel" class="trip-panel"></div>
@@ -1159,6 +1189,17 @@ async function sbDelete(table, query) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}${query}`, { method: 'DELETE', headers: SB_HDR });
   if (!r.ok) throw new Error(`DELETE ${table} ${r.status}`);
 }
+// Plain INSERT — no merge-duplicates. Use for tables whose primary key is
+// `generated always as identity` and is NOT sent in the body (e.g. costco_items).
+// A merge-duplicates upsert on such a table has no ON CONFLICT target, so
+// PostgREST 500s — which previously wiped the whole list. A plain insert avoids that.
+async function sbInsert(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST', headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) { const t = await r.text(); throw new Error(`INSERT ${table} ${r.status}: ${t}`); }
+}
 async function sbPatch(table, query, body) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}${query}`, {
     method: 'PATCH',
@@ -1270,9 +1311,15 @@ async function sbSaveSettings() {
 async function sbSaveStaples() {
   setSyncStatus('saving');
   try {
-    await sbDelete('pantry_staples', '?id=gt.0');
+    // Same insert-before-delete pattern as sbSaveCostco: pantry_staples' PK is
+    // also `generated always`, so a merge-duplicates upsert 500s and the old
+    // delete-then-upsert could wipe the list. Snapshot ids → plain insert → delete old.
+    const existing = await sbGet('pantry_staples', '?select=id');
     if (appData.pantryStaples.length) {
-      await sbUpsert('pantry_staples', appData.pantryStaples.map(name => ({ name })));
+      await sbInsert('pantry_staples', appData.pantryStaples.map(name => ({ name })));
+    }
+    if (existing.length) {
+      await sbDelete('pantry_staples', `?id=in.(${existing.map(r => r.id).join(',')})`);
     }
     setSyncStatus('saved');
   } catch(e) { console.error(e); setSyncStatus('error'); }
@@ -1280,9 +1327,18 @@ async function sbSaveStaples() {
 async function sbSaveCostco() {
   setSyncStatus('saving');
   try {
-    await sbDelete('costco_items', '?id=gt.0');
+    // INSERT the new rows BEFORE deleting the old ones, so a failure can never
+    // leave the table empty. The old code did delete-all-then-upsert; the upsert
+    // used merge-duplicates, which 500s on this table's generated-always PK, so
+    // the delete went through and every Costco item was lost (and the nav showed
+    // "Offline"). Now: snapshot existing ids → plain-insert the desired list →
+    // only then remove the previous rows.
+    const existing = await sbGet('costco_items', '?select=id');
     if (appData.costcoItems.length) {
-      await sbUpsert('costco_items', appData.costcoItems.map(name => ({ name })));
+      await sbInsert('costco_items', appData.costcoItems.map(name => ({ name })));
+    }
+    if (existing.length) {
+      await sbDelete('costco_items', `?id=in.(${existing.map(r => r.id).join(',')})`);
     }
     setSyncStatus('saved');
   } catch(e) { console.error(e); setSyncStatus('error'); }
@@ -2718,6 +2774,13 @@ function printRecipe() {
 }
 
 function printGrocery() {
+  // Label the printed page with the selected trip + week.
+  const head = document.getElementById('grocery-print-head');
+  if (head) {
+    const names = { costco: '🏬 Costco', '1': '🛒 Grocery — Trip 1 (Sat/Sun)', '2': '🥬 Grocery — Trip 2 (Wed/Thu)' };
+    const wk = document.getElementById('grocery-week-select')?.value || '';
+    head.textContent = `${names[currentTripPanel] || 'Grocery List'}${wk ? ' — Week of ' + wk : ''}`;
+  }
   document.body.classList.add('printing-grocery');
   window.print();
   setTimeout(() => document.body.classList.remove('printing-grocery'), 1000);
@@ -3182,9 +3245,13 @@ function renderGrocery() {
   document.getElementById('trip2-panel').innerHTML = buildPanel(trip2Items, checkedT2, '2');
 }
 
+// Which grocery list is on screen: 'costco' | '1' (Trip 1) | '2' (Trip 2).
+// Print and Export default to whichever tab is currently selected.
+let currentTripPanel = 'costco';
 function switchTrip(num) {
   document.querySelectorAll('.trip-tab').forEach((t,i) => t.classList.toggle('active', i===num-1));
   document.querySelectorAll('.trip-panel').forEach((p,i) => p.classList.toggle('active', i===num-1));
+  currentTripPanel = num === 2 ? '1' : num === 3 ? '2' : 'costco';
 }
 
 function _checkedMapFor(plan, panelId) {
@@ -3451,6 +3518,12 @@ function showToast(msg, type='') {
 // EXPORT / ANYLIST
 // ═══════════════════════════════════════════════════
 function openExportModal() {
+  // Default the export to whichever trip tab is currently selected (Tyler's
+  // requirement). The dropdown still offers "Both Trips" / Everything for combining.
+  const sel = document.getElementById('export-trip-select');
+  if (sel) sel.value = currentTripPanel === '1' ? 'grocery-1'
+                     : currentTripPanel === '2' ? 'grocery-2'
+                     : 'costco';
   refreshExportText();
   if (navigator.share) {
     document.getElementById('btn-share-list').style.display = '';
