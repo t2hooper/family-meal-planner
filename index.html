@@ -3594,36 +3594,40 @@ function generateExportList(filter) {
   const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
   const sectionLabels = {produce:'Produce',meat:'Meat & Seafood',dairy:'Dairy & Eggs',frozen:'Frozen',pantry:'Pantry & Dry Goods',bakery:'Bakery',other:'Other'};
 
-  function formatSection(items, header, checkedMap) {
-    // Drop any item already checked off the on-screen list (matched by norm) so
-    // it never reaches AnyList — prevents buying it twice.
+  // AnyList treats EVERY pasted line as an item, so the export must be a bare
+  // list of grocery items — one per line, NO title, store headers, divider
+  // lines, or [Section] labels (those all turned into junk rows). AnyList
+  // auto-categorizes the items into its own sections on import. We still order
+  // by store section for tidiness and drop checked-off items.
+  function sectionLines(items, checkedMap) {
     const live = items.filter(i => !(checkedMap && checkedMap[i.norm]));
-    if (!live.length) return header + '\n' + '─'.repeat(header.length) + '\n(none)\n';
-    let out = header + '\n' + '─'.repeat(header.length) + '\n';
+    const lines = [];
     sections.forEach(sec => {
-      const secItems = live.filter(i => i.storeSection === sec)
-        .sort((a,b) => a.name.localeCompare(b.name));
-      if (!secItems.length) return;
-      out += `\n[${sectionLabels[sec]}]\n`;
-      secItems.forEach(item => {
-        const qStr = groceryQtyStr(item);
-        out += `• ${item.name}${qStr ? '  (' + qStr + ')' : ''}\n`;
-      });
+      live.filter(i => i.storeSection === sec)
+        .sort((a,b) => a.name.localeCompare(b.name))
+        .forEach(item => {
+          const qStr = groceryQtyStr(item);
+          lines.push(`${item.name}${qStr ? ' (' + qStr + ')' : ''}`);
+        });
     });
-    return out;
+    return lines;
   }
 
-  let text = `SHOPPING LIST — Week of ${weekKey}\n${'═'.repeat(36)}\n\n`;
+  let lines = [];
   if (filter === 'costco' || filter === 'everything') {
-    text += formatSection(costcoItems, '🏬 COSTCO', checkedCostco) + '\n';
+    lines = lines.concat(sectionLines(costcoItems, checkedCostco));
   }
   if (filter === 'grocery-both' || filter === 'grocery-1' || filter === 'everything') {
-    text += formatSection(trip1Items, '🛒 GROCERY STORE — Trip 1 (Sat/Sun)', checkedT1) + '\n';
+    lines = lines.concat(sectionLines(trip1Items, checkedT1));
   }
   if (filter === 'grocery-both' || filter === 'grocery-2' || filter === 'everything') {
-    text += formatSection(trip2Items, '🥬 GROCERY STORE — Trip 2 (Wed/Thu)', checkedT2);
+    lines = lines.concat(sectionLines(trip2Items, checkedT2));
   }
-  return text.trim();
+  // De-dupe identical lines (e.g. same item landing in two combined trips).
+  const seen = new Set();
+  lines = lines.filter(l => (seen.has(l) ? false : (seen.add(l), true)));
+  if (!lines.length) return '(Nothing to buy — everything is checked off or no meals planned.)';
+  return lines.join('\n');
 }
 
 async function copyExportList() {
