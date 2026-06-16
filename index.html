@@ -3541,6 +3541,13 @@ function generateExportList(filter) {
   const plan = appData.weekPlans[weekKey];
   if (!plan) return '(No meals planned for this week yet.)';
 
+  // Checked-off items must NOT appear in the AnyList export, or Tyler risks
+  // buying them twice. Regular items are checked via checkedMap[item.norm];
+  // manually-added "extra" items via map['x::'+name] (value === checked state).
+  const checkedCostco = plan.costcoChecked || {};
+  const checkedT1 = plan.trip1Checked || {};
+  const checkedT2 = plan.trip2Checked || {};
+
   // Build the same three de-duplicated lists the on-screen grocery view uses.
   const costcoItems = [], trip1Items = [], trip2Items = [];
   const trip2Days = [4,5,6];
@@ -3575,9 +3582,11 @@ function generateExportList(filter) {
   });
 
   // Manually-added "extra" items (stored as x:: keys in each panel's checked map).
+  // Skip any that are checked off — value truthy means it's already in the cart.
   [['costco', costcoItems, plan.costcoChecked], ['1', trip1Items, plan.trip1Checked], ['2', trip2Items, plan.trip2Checked]]
     .forEach(([, list, map]) => {
       Object.keys(map || {}).filter(k => k.startsWith('x::')).forEach(k => {
+        if (map[k]) return;   // checked off → exclude from export
         addGroceryItem(list, { name: k.slice(3), quantity: '', unit: '', storeSection: 'other', meal: 'Added item' });
       });
     });
@@ -3585,11 +3594,14 @@ function generateExportList(filter) {
   const sections = ['produce','meat','dairy','frozen','pantry','bakery','other'];
   const sectionLabels = {produce:'Produce',meat:'Meat & Seafood',dairy:'Dairy & Eggs',frozen:'Frozen',pantry:'Pantry & Dry Goods',bakery:'Bakery',other:'Other'};
 
-  function formatSection(items, header) {
-    if (!items.length) return header + '\n' + '─'.repeat(header.length) + '\n(none)\n';
+  function formatSection(items, header, checkedMap) {
+    // Drop any item already checked off the on-screen list (matched by norm) so
+    // it never reaches AnyList — prevents buying it twice.
+    const live = items.filter(i => !(checkedMap && checkedMap[i.norm]));
+    if (!live.length) return header + '\n' + '─'.repeat(header.length) + '\n(none)\n';
     let out = header + '\n' + '─'.repeat(header.length) + '\n';
     sections.forEach(sec => {
-      const secItems = items.filter(i => i.storeSection === sec)
+      const secItems = live.filter(i => i.storeSection === sec)
         .sort((a,b) => a.name.localeCompare(b.name));
       if (!secItems.length) return;
       out += `\n[${sectionLabels[sec]}]\n`;
@@ -3603,13 +3615,13 @@ function generateExportList(filter) {
 
   let text = `SHOPPING LIST — Week of ${weekKey}\n${'═'.repeat(36)}\n\n`;
   if (filter === 'costco' || filter === 'everything') {
-    text += formatSection(costcoItems, '🏬 COSTCO') + '\n';
+    text += formatSection(costcoItems, '🏬 COSTCO', checkedCostco) + '\n';
   }
   if (filter === 'grocery-both' || filter === 'grocery-1' || filter === 'everything') {
-    text += formatSection(trip1Items, '🛒 GROCERY STORE — Trip 1 (Sat/Sun)') + '\n';
+    text += formatSection(trip1Items, '🛒 GROCERY STORE — Trip 1 (Sat/Sun)', checkedT1) + '\n';
   }
   if (filter === 'grocery-both' || filter === 'grocery-2' || filter === 'everything') {
-    text += formatSection(trip2Items, '🥬 GROCERY STORE — Trip 2 (Wed/Thu)');
+    text += formatSection(trip2Items, '🥬 GROCERY STORE — Trip 2 (Wed/Thu)', checkedT2);
   }
   return text.trim();
 }
