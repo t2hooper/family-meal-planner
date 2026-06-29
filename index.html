@@ -337,6 +337,10 @@ a:hover{text-decoration:underline}
 /* ── NIGHT PREP WARNING ── */
 .prep-warn{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#B71C1C;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle}
 .none-meal-slot{background:var(--gray-bg);border:1px dashed var(--border);border-radius:6px;padding:8px 10px;text-align:center;font-size:11px;color:var(--gray-light);font-style:italic}
+.none-meal-slot .nocook-head{font-style:normal;font-weight:700;font-size:13px;color:var(--gray-mid);display:inline-block}
+.norecipe-slot{background:var(--orange-bg);border-color:var(--orange);text-align:left}
+.norecipe-slot .nocook-head{color:var(--orange);display:block;margin-bottom:3px}
+.norecipe-slot .nocook-hint{font-style:normal;font-size:10px;color:var(--gray-mid);display:block;line-height:1.3}
 .night-type-row{display:flex;align-items:center;gap:5px;margin-bottom:6px}
 .night-type-cap{font-size:9px;font-weight:700;color:var(--gray-light);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
 .night-type-select{flex:1;min-width:0;font-size:10px;font-weight:600;color:var(--gray-mid);background:#fff;border:1px solid var(--border);border-radius:4px;padding:2px 4px;cursor:pointer}
@@ -1825,9 +1829,35 @@ function getMeals(day, mealType) {
 }
 
 // ── Night-prep type (per-week override → settings default) ────────
-// Each day may carry an explicit override in day.nightPrep ('full'|'quick'|'none').
+// Each day may carry an explicit override in day.nightPrep.
+// Recipe nights: 'full' (any recipe) | 'quick' (under 30m).
+// No-cook nights (no recipe needed, day counts as planned):
+//   'eatout'    — eating out, nothing bought
+//   'leftovers' — leftovers, nothing bought
+//   'norecipe'  — no-recipe meal: premade/individual items you buy (rotisserie
+//                 chicken, rolls, salad…). These DO feed the grocery list via
+//                 the meal-extras attached to the dinner slot.
+//   'none'      — LEGACY combined "eat out / leftovers" value (still honored).
 // When absent, fall back to the standard set in Settings for that day-of-week.
-const NIGHT_TYPE_LABELS = { full: 'Full prep', quick: 'Quick (under 30m)', none: 'Eat out / leftovers' };
+const NIGHT_TYPE_LABELS = {
+  full: 'Full prep',
+  quick: 'Quick (under 30m)',
+  eatout: 'Eat out',
+  leftovers: 'Leftovers',
+  norecipe: 'No-recipe meal',
+  none: 'Eat out / leftovers'
+};
+// No-cook night types need no dinner recipe; the day still counts as planned.
+const NO_COOK_TYPES = ['eatout', 'leftovers', 'norecipe', 'none'];
+function isNoCook(type) { return NO_COOK_TYPES.includes(type); }
+function needsRecipe(type) { return !isNoCook(type); }
+// Display chrome for each no-cook slot.
+const NO_COOK_DISPLAY = {
+  eatout:    { icon: '🍴', label: 'Eat out' },
+  leftovers: { icon: '♻️', label: 'Leftovers' },
+  norecipe:  { icon: '🛒', label: 'No-recipe meal' },
+  none:      { icon: '🍕', label: 'Eat out / leftovers' }
+};
 function settingsNightType(day) {
   const dow = new Date(day.date + 'T00:00:00').getDay();
   return (appData.settings.nightPrep || {})[dow] || 'full';
@@ -1919,7 +1949,7 @@ function isWeekComplete(weekStartDate) {
   const plan = getWeekPlan(weekStartDate);
   if (!plan) return false;
   return plan.days.every(d => {
-    if (getNightType(d) === 'none') return true; // no meal needed
+    if (isNoCook(getNightType(d))) return true; // no recipe needed → counts as planned
     return getMeals(d, 'dinner').length > 0;
   });
 }
@@ -2070,7 +2100,7 @@ function renderWeekly() {
     `${formatDate(ws)} – ${formatDate(we)}, ${we.getFullYear()}`;
 
   const plan = ensureWeekPlan(ws);
-  const needsDinner = d => getNightType(d) !== 'none';
+  const needsDinner = d => needsRecipe(getNightType(d));
   const complete = plan.days.filter(needsDinner).every(d => getMeals(d, 'dinner').length > 0);
   const banner = document.getElementById('week-banner');
   if (!complete) {
@@ -2096,8 +2126,13 @@ function renderWeekly() {
     const QUICK_THRESHOLD = 30;
 
     let dinnerHTML = '';
-    if (nightType === 'none' && dinners.length === 0) {
-      dinnerHTML = `<div class="none-meal-slot">🍕 Eat out / leftovers<br><span onclick="pickMeal('${dk}','dinner')" style="cursor:pointer;text-decoration:underline;font-size:10px">add a meal anyway</span></div>`;
+    if (isNoCook(nightType) && dinners.length === 0) {
+      const disp = NO_COOK_DISPLAY[nightType] || NO_COOK_DISPLAY.none;
+      if (nightType === 'norecipe') {
+        dinnerHTML = `<div class="none-meal-slot norecipe-slot"><span class="nocook-head">${disp.icon} ${disp.label}</span><span class="nocook-hint">Add what you'll buy (rotisserie chicken, rolls, salad…) — it goes on the grocery list.</span></div>`;
+      } else {
+        dinnerHTML = `<div class="none-meal-slot"><span class="nocook-head">${disp.icon} ${disp.label}</span><br><span onclick="pickMeal('${dk}','dinner')" style="cursor:pointer;text-decoration:underline;font-size:10px">add a recipe anyway</span></div>`;
+      }
     } else if (dinners.length === 0) {
       dinnerHTML = `<div class="dinner-card empty" onclick="pickMeal('${dk}','dinner')">+ Add Dinner</div>`;
     } else {
@@ -2174,11 +2209,18 @@ function renderWeekly() {
           <div class="meal-slot-label required">Dinner</div>
           <div class="night-type-row">
             <span class="night-type-cap">This week:</span>
-            <select class="night-type-select${day.nightPrep ? ' overridden' : ''}" onchange="setNightType('${dk}', this.value)" onclick="event.stopPropagation()" title="Set the prep level for this day this week. Defaults to your Settings standard.">
+            <select class="night-type-select${day.nightPrep ? ' overridden' : ''}" onchange="setNightType('${dk}', this.value)" onclick="event.stopPropagation()" title="Set the dinner plan for this day this week. Defaults to your Settings standard.">
               <option value="" ${!day.nightPrep ? 'selected' : ''}>Auto · ${NIGHT_TYPE_LABELS[settingsNightType(day)]}</option>
-              <option value="full" ${day.nightPrep === 'full' ? 'selected' : ''}>Full prep</option>
-              <option value="quick" ${day.nightPrep === 'quick' ? 'selected' : ''}>Quick (under 30m)</option>
-              <option value="none" ${day.nightPrep === 'none' ? 'selected' : ''}>Eat out / leftovers</option>
+              <optgroup label="Cook a recipe">
+                <option value="full" ${day.nightPrep === 'full' ? 'selected' : ''}>Full prep</option>
+                <option value="quick" ${day.nightPrep === 'quick' ? 'selected' : ''}>Quick (under 30m)</option>
+              </optgroup>
+              <optgroup label="No recipe">
+                <option value="norecipe" ${day.nightPrep === 'norecipe' ? 'selected' : ''}>🛒 No-recipe meal (buy items)</option>
+                <option value="eatout" ${day.nightPrep === 'eatout' ? 'selected' : ''}>🍴 Eat out</option>
+                <option value="leftovers" ${day.nightPrep === 'leftovers' ? 'selected' : ''}>♻️ Leftovers</option>
+                ${day.nightPrep === 'none' ? '<option value="none" selected>Eat out / leftovers (old)</option>' : ''}
+              </optgroup>
             </select>
           </div>
           ${dinnerHTML}
@@ -2504,7 +2546,7 @@ function autoSuggestWeek() {
   let pickIdx = 0;
   plan.days.forEach(day => {
     const nightType = getNightType(day);
-    if (nightType === 'none') return; // skip — no meal needed
+    if (isNoCook(nightType)) return; // skip — no recipe needed (eat out / leftovers / no-recipe)
     if (getMeals(day, 'dinner').length > 0) return; // already assigned
 
     // For quick nights, prefer quick recipes; fall back to full pool if none available
@@ -2538,7 +2580,7 @@ function autoSuggestWeek() {
 function finalizeWeek() {
   const plan = ensureWeekPlan(currentWeekStart);
   const missing = plan.days.filter(d => {
-    return getNightType(d) !== 'none' && getMeals(d, 'dinner').length === 0;
+    return needsRecipe(getNightType(d)) && getMeals(d, 'dinner').length === 0;
   }).length;
   if (missing > 0) {
     showToast(`${missing} dinner${missing>1?'s':''} still need to be filled in.`, 'error'); return;
@@ -3390,9 +3432,16 @@ function renderSettings() {
         const val = nightPrep[i] || 'full';
         return `<span style="font-size:13px;font-weight:600;color:var(--gray)">${day}</span>
           <select id="s-night-${i}" class="form-input" onchange="saveSettings()" style="padding:5px 8px;font-size:12px">
-            <option value="full"${val==='full'?' selected':''}>Full prep — any recipe</option>
-            <option value="quick"${val==='quick'?' selected':''}>Quick meal — under 30 min</option>
-            <option value="none"${val==='none'?' selected':''}>No meal — eat out / leftovers</option>
+            <optgroup label="Cook a recipe">
+              <option value="full"${val==='full'?' selected':''}>Full prep — any recipe</option>
+              <option value="quick"${val==='quick'?' selected':''}>Quick meal — under 30 min</option>
+            </optgroup>
+            <optgroup label="No recipe">
+              <option value="norecipe"${val==='norecipe'?' selected':''}>🛒 No-recipe meal — buy items</option>
+              <option value="eatout"${val==='eatout'?' selected':''}>🍴 Eat out</option>
+              <option value="leftovers"${val==='leftovers'?' selected':''}>♻️ Leftovers</option>
+              ${val==='none'?'<option value="none" selected>Eat out / leftovers (old)</option>':''}
+            </optgroup>
           </select>`;
       }).join('');
   }
