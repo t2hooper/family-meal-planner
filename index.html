@@ -1276,17 +1276,33 @@ function setSyncStatus(state) {
 
 // ── Targeted Supabase save helpers ───────────────
 async function sbSaveRecipe(recipe) {
+  if (recipe && recipe.id) { _dirtyRecipes.add(recipe.id); _persistDirtyRecipes(); }
   setSyncStatus('saving');
-  try { await sbUpsert('recipes', recipeToDb(recipe)); setSyncStatus('saved'); }
+  try {
+    await sbUpsert('recipes', recipeToDb(recipe));
+    // Clear the dirty flag only after the save is CONFIRMED, so a dropped/aborted
+    // write (iOS suspending the PWA mid-request) is retried on next load.
+    if (recipe && recipe.id) { _dirtyRecipes.delete(recipe.id); _persistDirtyRecipes(); }
+    setSyncStatus('saved');
+  }
   catch(e) { console.error(e); setSyncStatus('error'); }
 }
 async function sbSaveRecipes(recipes) {
   if (!recipes.length) return;
+  recipes.forEach(r => { if (r && r.id) _dirtyRecipes.add(r.id); });
+  _persistDirtyRecipes();
   setSyncStatus('saving');
-  try { await sbUpsert('recipes', recipes.map(recipeToDb)); setSyncStatus('saved'); }
+  try {
+    await sbUpsert('recipes', recipes.map(recipeToDb));
+    recipes.forEach(r => { if (r && r.id) _dirtyRecipes.delete(r.id); });
+    _persistDirtyRecipes();
+    setSyncStatus('saved');
+  }
   catch(e) { console.error(e); setSyncStatus('error'); }
 }
 async function sbDeleteRecipe(id) {
+  // A deleted recipe must never be retried/restored, so drop it from the dirty set.
+  if (id) { _dirtyRecipes.delete(id); _persistDirtyRecipes(); }
   setSyncStatus('saving');
   try { await sbDelete('recipes', `?id=eq.${encodeURIComponent(id)}`); setSyncStatus('saved'); }
   catch(e) { console.error(e); setSyncStatus('error'); }
@@ -1395,6 +1411,19 @@ function _persistDirty() {
   try { localStorage.setItem('mealplanner_dirty', JSON.stringify([..._dirtyWeeks])); } catch(e) {}
 }
 
+// Same protection as _dirtyWeeks, but for recipes. A recipe save is fire-and-forget;
+// if iOS suspends the PWA mid-request the write is dropped, the recipe lives only in
+// localStorage, and the NEXT initData (which overwrites appData.recipes with the
+// server list) would erase it. We persist the ids of unsaved recipes and retry on
+// load. An id is removed only after a CONFIRMED successful save.
+let _dirtyRecipes = new Set((() => {
+  try { return JSON.parse(localStorage.getItem('mealplanner_dirty_recipes') || '[]'); }
+  catch(e) { return []; }
+})());
+function _persistDirtyRecipes() {
+  try { localStorage.setItem('mealplanner_dirty_recipes', JSON.stringify([..._dirtyRecipes])); } catch(e) {}
+}
+
 const DEFAULT_DATA = () => ({
   version:1,
   settings:{ familyName:'Hooper', servings:5, trip1Day:'saturday', trip2Day:'wednesday', noRepeatWeeks:2, maxSameProtein:3 },
@@ -1423,7 +1452,23 @@ async function initData() {
     if (sf) appData.settings = sf.value;
     appData.pantryStaples = staplesRows.map(r => r.name);
     appData.costcoItems = (costcoRows || []).map(r => r.name);
+    // Capture any locally-edited recipes whose save hasn't been confirmed BEFORE we
+    // overwrite with the server list, so a dropped write isn't erased. Keep the local
+    // copy (replace the server row, or append if it's a brand-new recipe) and retry.
+    const _localRecipes = appData.recipes || [];
+    const _retryRecipes = [];
     appData.recipes = recipesRows.map(recipeFromDb);
+    if (_dirtyRecipes.size) {
+      const byId = {};
+      appData.recipes.forEach((r, i) => { byId[r.id] = i; });
+      _dirtyRecipes.forEach(id => {
+        const local = _localRecipes.find(r => r && r.id === id);
+        if (!local) return;
+        if (byId[id] != null) appData.recipes[byId[id]] = local;
+        else appData.recipes.push(local);
+        _retryRecipes.push(local);
+      });
+    }
     const fresh = {};
     plansRows.forEach(row => { fresh[row.week_start] = planFromDb(row); });
     // Don't clobber any week with unsaved local edits. _dirtyWeeks persists
@@ -1438,6 +1483,7 @@ async function initData() {
     persistToSession();
     setSyncStatus('saved');
     _retry.forEach(p => sbSaveWeekPlan(p));
+    _retryRecipes.forEach(r => sbSaveRecipe(r));
   } catch(e) {
     console.error('Supabase load failed, running from cache:', e);
     setSyncStatus('error');
