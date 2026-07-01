@@ -1352,16 +1352,20 @@ async function sbSaveSettings() {
 async function sbSaveStaples() {
   setSyncStatus('saving');
   try {
-    // Same insert-before-delete pattern as sbSaveCostco: pantry_staples' PK is
-    // also `generated always`, so a merge-duplicates upsert 500s and the old
-    // delete-then-upsert could wipe the list. Snapshot ids → plain insert → delete old.
-    const existing = await sbGet('pantry_staples', '?select=id');
-    if (appData.pantryStaples.length) {
-      await sbInsert('pantry_staples', appData.pantryStaples.map(name => ({ name })));
-    }
-    if (existing.length) {
-      await sbDelete('pantry_staples', `?id=in.(${existing.map(r => r.id).join(',')})`);
-    }
+    // pantry_staples.name has a UNIQUE constraint (unlike costco_items). The old
+    // insert-ALL-then-delete-old approach re-inserted names that were still in the
+    // table, so every existing staple hit a duplicate-key error → the save failed
+    // and the nav flipped to ⚠️ Offline (adding even one new staple broke it).
+    // Fix: diff against the server. Insert only names that aren't there yet, delete
+    // only rows whose name is no longer wanted, and leave unchanged rows untouched —
+    // no duplicate collision and no risk of wiping the list.
+    const existing = await sbGet('pantry_staples', '?select=id,name');
+    const existingNames = new Set(existing.map(r => r.name));
+    const wantedNames = new Set(appData.pantryStaples);
+    const toInsert = appData.pantryStaples.filter(n => !existingNames.has(n)).map(name => ({ name }));
+    const toDeleteIds = existing.filter(r => !wantedNames.has(r.name)).map(r => r.id);
+    if (toInsert.length) await sbInsert('pantry_staples', toInsert);
+    if (toDeleteIds.length) await sbDelete('pantry_staples', `?id=in.(${toDeleteIds.join(',')})`);
     setSyncStatus('saved');
   } catch(e) { console.error(e); setSyncStatus('error'); }
 }
