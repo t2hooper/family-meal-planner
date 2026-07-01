@@ -412,6 +412,18 @@ a:hover{text-decoration:underline}
   .form-grid{grid-template-columns:1fr}
   .nav-tabs .nav-tab{padding:8px 8px;font-size:11px}
   .brand{display:none}
+  /* Stop the tab strip from forcing the nav wider than the screen, which used to
+     shove the sync badge + ⬇ Backup button off the right edge so they spilled
+     outside the green bar and looked like a stray, unfinished block. min-width:0
+     lets the tabs shrink; overflow-x:auto makes them swipe instead of overflow.
+     nav-right is then pinned on-screen inside the nav. */
+  #app-nav{overflow:hidden}
+  .nav-tabs{min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .nav-tabs::-webkit-scrollbar{display:none}
+  .nav-tab{flex:0 0 auto}
+  .nav-right{flex-shrink:0;gap:6px}
+  .sync-status{font-size:11px;padding:4px 8px}
+  .btn-save{padding:6px 10px;white-space:nowrap}
 }
 </style>
 </head>
@@ -877,7 +889,7 @@ CRITICAL PARSING RULES (DO NOT VIOLATE):
 - Do NOT round, normalize, or reinterpret quantities.
 - Do NOT combine or split ingredient lines unless explicitly written.
 - "quantity" must always be a string (e.g., "2/3", "1", "2-3"), never a number.
-- If no serving size is provided in the recipe, set "servings": "unspecified" and leave all ingredient quantities unchanged.</div>
+- If no serving size is provided in the recipe, set "servings": 5 (the household default) and leave all ingredient quantities unchanged.</div>
               <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="copyClaudePrompt()">📋 Copy Message</button>
             </div>
           </div>
@@ -1214,15 +1226,24 @@ async function sbPatch(table, query, body) {
 }
 
 // ── DB ↔ APP mappers ─────────────────────────────
+// Coerce a value to a safe integer for Postgres integer columns. Any non-numeric
+// value (e.g. the string "unspecified" that the Claude-import prompt can emit, or
+// "" / undefined) falls back to the default. Without this, such a value reaches an
+// integer column and PostgREST rejects the whole row ("invalid input syntax for
+// type integer"), so the recipe never saves and the nav flips to ⚠️ Offline.
+function toInt(v, d) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : d;
+}
 function recipeToDb(r) {
   return {
     id: r.id, name: r.name, photo: r.photo||null,
-    servings: r.servings||5, prep_time: r.prepTime||0, cook_time: r.cookTime||0,
+    servings: toInt(r.servings, 5), prep_time: toInt(r.prepTime, 0), cook_time: toInt(r.cookTime, 0),
     difficulty: r.difficulty||'easy', protein: r.protein||'other',
     cuisine: r.cuisine||'other', course: r.course||'dinner',
     tags: r.tags||[], ingredients: r.ingredients||[], instructions: r.instructions||[],
     notes: r.notes||'', source_type: r.source?.type||'manual', source_value: r.source?.value||null,
-    frequency: r.frequency||0, last_planned: r.lastPlanned||null,
+    frequency: toInt(r.frequency, 0), last_planned: r.lastPlanned||null,
     tier: r.tierOverride||null, day_preference: r.dayPreference||[],
     date_added: r.dateAdded||dateKey(new Date())
   };
@@ -3132,9 +3153,9 @@ function importFromClaude() {
     const recipe = {
       id: generateId(),
       name: normalizeRecipeName(raw.name || 'Untitled Recipe'),
-      servings: raw.servings || 5,
-      prepTime: raw.prepTime || 0,
-      cookTime: raw.cookTime || 0,
+      servings: toInt(raw.servings, 5),
+      prepTime: toInt(raw.prepTime, 0),
+      cookTime: toInt(raw.cookTime, 0),
       difficulty: raw.difficulty || 'medium',
       protein: raw.protein || 'mixed',
       cuisine: raw.cuisine || 'other',
@@ -4102,9 +4123,9 @@ function approveScanFinal() {
   const recipe = {
     id: generateId(),
     name:       normalizeRecipeName(g('name').value.trim() || 'Untitled Recipe'),
-    servings:   g('servings').value || _scanParsed.servings || 5,
-    prepTime:   parseInt(g('prepTime').value)  || 0,
-    cookTime:   parseInt(g('cookTime').value)  || 0,
+    servings:   toInt(g('servings').value || _scanParsed.servings, 5),
+    prepTime:   toInt(g('prepTime').value, 0),
+    cookTime:   toInt(g('cookTime').value, 0),
     difficulty: g('difficulty').value || 'medium',
     protein:    g('protein').value    || 'mixed',
     cuisine:    g('cuisine').value    || 'other',
